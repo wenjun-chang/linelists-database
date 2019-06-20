@@ -1,1 +1,53 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jun 18 13:54:41 2019
 
+@author: toma
+"""
+'''
+with open('CO(copy).out') as infile:
+    for line in infile:
+        data = line.split(' ')
+        query = ("insert into lines(global_iso_id, molec_id, local_iso_id, \
+                                    nu, sw, a, gamma_air, n_air, delta_air, \
+                                    elower, gp, gpp, statep, statepp, \
+                                    gamma_H2, n_H2, delta_H2, gamma_He, \
+                                    n_He, delta_He)" "values(?, ?, ?, ?, ?,\
+                                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \
+                                    ?, ?, ?)")
+        cursor.excecute(query, *data)
+        cnxn.commit()
+'''
+
+import MySQLdb
+
+#connect to the database
+db = MySQLdb.connect('localhost', 'toma', 'password', 'linelist') 
+#do put actual password when run
+
+#create a cursor object
+cursor = db.cursor()
+
+#create table 1 for particles
+#molecule_name format for example, CO2, is (13C)(16O)2
+table1 = '''create table particles (molecule_name varchar(12) not null, \
+iso_abundance float not null, molecular_mass float not null, particle_id \
+int unsigned not null auto_increment primary key); '''
+
+#create table 2 for all the lines for each particle in table 1
+#nu stands for transition wavenumber
+#a stands for einstein coefficient
+#gp stands for the degeneracy of the lower state
+#is gp good with smallint??? should H2 He stuff default as null or 0.0
+
+table2 = '''create table lines (nu float not null, a float not null, \
+gammar_air float not null, n_air float not null, delta_air float not null, \
+elower float not null, gp smallint not null, gamma_H2 float not null default \
+0.0, n_H2 float not null default 0.0, delta_H2 float not null default 0.0, \
+gamma_He float not null default 0.0, n_He float not null default 0.0, \
+delta_He float not null default 0.0, data_type enum('HITRAN', 'EXOMOL') not null, \
+version varchar(10) not null, particle_id int not null, line_id int unsigned \
+not null auto_increment primary key); '''
+
+#create table 3 for the partition coefficient across all temperatures for each
+#particle in table 1
