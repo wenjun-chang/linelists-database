@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jun 20 13:12:27 2019
+
+@author: toma
+"""
+
+import MySQLdb
+
+########################
+
+#given input v(nu), T, p, molecule, data_type, and version
+
+#fetch the partition function value given an input T, temperature
+def get_partition(T): #temp has to be a float i.g. 19.0
+    #connect to the database
+    db = MySQLdb.connect('localhost', 'toma', 'password', 'linelist') 
+    #do put actual password when run
+    
+    #create a cursor object
+    cursor = db.cursor()
+    
+    #query for the partition function given T, temperature
+    query = '''select partition from partitions where temp = {}'''.format(T)
+    
+    try: 
+        #there should only be one single value, otherwise the database is wrong
+        cursor.execute(query)
+        data = cursor.fetchall()
+        
+        #check if the database is correct
+        if (data[1] == True):
+            raise Exception('should only have one partition value given a specific T')
+        
+        partition_value = data[0][0]
+        return partition_value
+    
+    except: 
+        #if errors occur
+        db.rollback()
+        
+    finally: 
+        #close up cursor and connection
+        cursor.close()
+        db.close()
+
+#######################
+
+#get the isotope abundance of the input molecule  
+#molecule_name format for example, CO2, is (13C)(16O)2
+def get_particle(mol_name):
+     #connect to the database
+    db = MySQLdb.connect('localhost', 'toma', 'password', 'linelist') 
+    #do put actual password when run
+    
+    #create a cursor object
+    cursor = db.cursor()
+    
+    #query for the partition function given T, temperature
+    query = '''select iso_abundance from particles where molecule_name = {}'''.format(mol_name)
+    
+    try: 
+        cursor.execute(query)
+        data = cursor.fetchone()
+        
+        particle_id = data[0]
+        iso_abundance = data[1]
+        return (particle_id, iso_abundance)
+    
+    except: 
+        #if errors occur
+        db.rollback()
+        
+    finally: 
+        #close up cursor and connection
+        cursor.close()
+        db.close()
+
+##########################
+        
+#using the particle_id returned from get_particle to fetch all the line data of the input molecule
+#given input v(nu), T, p, molecule, data_type, and version
+def get_lines(nu, particle_id, data_type, version):
+     #connect to the database
+    db = MySQLdb.connect('localhost', 'toma', 'password', 'linelist') 
+    #do put actual password when run
+    
+    #create a cursor object
+    cursor = db.cursor()
+    
+    #query for the partition function given T, temperature
+    query = '''select iso_abundance from particles where molecule_name = {}'''.format()
+    pass
+        
+#########################
+        
+def main():
+    pass
+
+if __name__ == '__main__':
+    main()
