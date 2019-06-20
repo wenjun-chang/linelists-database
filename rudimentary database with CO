@@ -62,7 +62,7 @@ iso_abundance float not null, molecular_mass float not null, particle_id \
 int unsigned not null auto_increment primary key) \
 values ('%s', '%d', '%d', '%d') ''' % ('(12C)(16O)', 0.986544, 27.994915)
 
-data_in = '''insert into '''
+
 #insert the data of all lines for CO into table lines
 # with open('CO(copy).out') as infile: #
 try:
@@ -71,22 +71,47 @@ try:
     for line in infile:
         data = line.split(' ')
         query = ('''insert into lines (nu float not null, a float not null, \
-                                     gammar_air float not null, n_air float not null, delta_air float not null, \
-                                     elower float not null, gp smallint not null, gamma_H2 float not null default \
-                                     0.0, n_H2 float not null default 0.0, delta_H2 float not null default 0.0, \
-                                     gamma_He float not null default 0.0, n_He float not null default 0.0, \
-                                     delta_He float not null default 0.0, data_type enum('HITRAN', 'EXOMOL') not null, \
-                                     version varchar(10) not null, particle_id int not null, line_id int unsigned \
-                                     not null auto_increment primary key) values('%d', '%d', '%d', '%d', '%d',\
-                                    '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%d')''' \
-    % (*data, 'HITRAN', '2012', 1) #or this: (line, 'HITRAN', '2012', 1)
+                                       gammar_air float not null, n_air float not null, delta_air float not null, \
+                                       elower float not null, gp smallint not null, gamma_H2 float not null default \
+                                       0.0, n_H2 float not null default 0.0, delta_H2 float not null default 0.0, \
+                                       gamma_He float not null default 0.0, n_He float not null default 0.0, \
+                                       delta_He float not null default 0.0, data_type enum('HITRAN', 'EXOMOL') not null, \
+                                       version varchar(10) not null, particle_id int not null, line_id int unsigned \
+                                       not null auto_increment primary key) values('%d', '%d', '%d', '%d', '%d',\
+                                       '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%d')''' % (*data, 'HITRAN', '2012', 1)) 
+    #or this: (line, 'HITRAN', '2012', 1)
         cursor.execute(query)
         #maybe print the id each time to mnake sure it runs correctly?
     #commit changes
     db.commit()
+    infile.close()
 except: 
     #if errors occur
     db.rollback()
+    
+    
+#insert all the pratition functions into the table
+try:
+    #open the file
+    infile2 = open('/home/toma/Desktop/12C-16O__Li2015_partition.pf')
+    for line in infile:
+        data = line.split(' ')
+        query = ('''insert into partitions (temp float not null, partition float not null, \ 
+        particle_id int not null, partition_id int unsigned not null auto_increment \
+        primary key) values('%d', '%d', '%d', '%d')''' % (*data, 1))
+        cursor.execute(query) #maybe print the id each time to mnake sure it runs correctly?
+    #commit changes
+    db.commit()
+    infile2.close()
+except: 
+    #if errors occur
+    db.rollback()
+        
+finally: 
+    #close up cursor and connection
+    infile.close()
+    cursor.close()
+    
 
 
 def main():
