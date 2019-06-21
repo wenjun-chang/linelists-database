@@ -80,6 +80,11 @@ try:
                                        not null auto_increment primary key) values('%d', '%d', '%d', '%d', '%d',\
                                        '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%d')''' % (*data, 'HITRAN', '2012', 1)) 
     #or this: (line, 'HITRAN', '2012', 1)
+    #should He and H2 stuff default as null or 0.0?!!!!!!!!!!
+    #line table arrangement corresponding to tuple indexes: 
+    #(nu, a, gammar_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, data_type, version, particle_id, line_id)
+    #( 0, 1,      2,       3,       4,        5,    6,    7,       8,      9,       10,      11,    12,        13,       14,        15,        16  )
+    
         cursor.execute(query)
         #maybe print the id each time to mnake sure it runs correctly?
     #commit changes
