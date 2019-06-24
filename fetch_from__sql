@@ -6,6 +6,9 @@ Created on Thu Jun 20 13:12:27 2019
 @author: toma
 """
 
+#this code fetch data from database and compute absorption cross section data 
+#as the user desired with a user interface main()
+
 import MySQLdb
 import math
 
@@ -16,7 +19,7 @@ import math
 #fetch the partition function value given an input T, temperature
 def get_partition(T): #temp has to be a float i.g. 19.0
     #connect to the database
-    db = MySQLdb.connect('localhost', 'toma', 'password', 'linelist') 
+    db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
     #do put actual password when run
     
     #create a cursor object
@@ -52,7 +55,7 @@ def get_partition(T): #temp has to be a float i.g. 19.0
 #molecule_name format for example, CO2, is (13C)(16O)2
 def get_particle(mol_name):
      #connect to the database
-    db = MySQLdb.connect('localhost', 'toma', 'password', 'linelist') 
+    db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist')
     #do put actual password when run
     
     #create a cursor object
@@ -174,7 +177,7 @@ def compute_all(v, T, p, molecule, data_type, version):
     iso_abundance = particle_data[1]
 
      #connect to the database
-    db = MySQLdb.connect('localhost', 'toma', 'password', 'linelist') 
+    db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
     #do put actual password when run
     
     #create a cursor object
