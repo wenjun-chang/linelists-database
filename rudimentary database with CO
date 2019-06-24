@@ -9,7 +9,7 @@ Created on Tue Jun 18 13:54:41 2019
 import MySQLdb
 
 #connect to the database
-db = MySQLdb.connect('localhost', 'toma', 'password', 'linelist') 
+db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist')
 #do put actual password when run
 
 #create a cursor object
@@ -18,7 +18,7 @@ cursor = db.cursor()
 #create table 1 for particles
 #molecule_name format for example, CO2, is (13C)(16O)2
 table1 = '''create table particles (molecule_name varchar(12) not null, \
-iso_abundance float not null, molecular_mass float not null, particle_id \
+iso_abundance double not null, molecular_mass double not null, particle_id \
 int unsigned not null auto_increment primary key); '''
 
 #create table 2 for all the lines for each particle in table 1
@@ -27,12 +27,12 @@ int unsigned not null auto_increment primary key); '''
 #gp stands for the degeneracy of the lower state
 #is gp good with smallint??? should H2 He stuff default as null or 0.0
 
-table2 = '''create table lines (nu float not null, a float not null, \
-gammar_air float not null, n_air float not null, delta_air float not null, \
-elower float not null, gp smallint not null, gamma_H2 float not null default \
-0.0, n_H2 float not null default 0.0, delta_H2 float not null default 0.0, \
-gamma_He float not null default 0.0, n_He float not null default 0.0, \
-delta_He float not null default 0.0, data_type enum('HITRAN', 'EXOMOL') not null, \
+table2 = '''create table lines (nu double not null, a double not null, \
+gammar_air double not null, n_air double not null, delta_air double not null, \
+elower double not null, gp smallint not null, gamma_H2 double not null default \
+0.0, n_H2 double not null default 0.0, delta_H2 double not null default 0.0, \
+gamma_He double not null default 0.0, n_He double not null default 0.0, \
+delta_He double not null default 0.0, data_type enum('HITRAN', 'EXOMOL') not null, \
 version varchar(10) not null, particle_id int not null, line_id int unsigned \
 not null auto_increment primary key); '''
 
@@ -44,23 +44,25 @@ table3 = '''create table partitions (temp float not null, partition float not nu
 particle_id int not null, partition_id int unsigned not null auto_increment \
 primary key); '''
 
-#create the tables
+#insert CO data into table particle
+CO = '''insert into particles (molecule_name varchar(12) not null, \
+iso_abundance double not null, molecular_mass double not null, particle_id \
+int unsigned not null auto_increment primary key) \
+values ('%s', '%s', '%s', '%s') ''' % ('(12C)(16O)', 0.986544, 27.994915, 'null')
+
+
+#create the tables and input CO 
 try: 
     #can i combine them?
     cursor.execute(table1)
     cursor.execute(table2)
     cursor.execute(table3)
+    cursor.execute(CO)
     #commit changes
     db.commit()
 except: 
     #if errors occur
     db.rollback()
-
-#insert CO data into table particle
-CO = '''insert into particles (molecule_name varchar(12) not null, \
-iso_abundance float not null, molecular_mass float not null, particle_id \
-int unsigned not null auto_increment primary key) \
-values ('%s', '%d', '%d', '%d') ''' % ('(12C)(16O)', 0.986544, 27.994915)
 
 
 #insert the data of all lines for CO into table lines
@@ -70,15 +72,16 @@ try:
     infile = open('/home/toma/Desktop/co_test.out')
     for line in infile:
         data = line.split(' ')
-        query = ('''insert into lines (nu float not null, a float not null, \
-                                       gammar_air float not null, n_air float not null, delta_air float not null, \
-                                       elower float not null, gp smallint not null, gamma_H2 float not null default \
-                                       0.0, n_H2 float not null default 0.0, delta_H2 float not null default 0.0, \
-                                       gamma_He float not null default 0.0, n_He float not null default 0.0, \
-                                       delta_He float not null default 0.0, data_type enum('HITRAN', 'EXOMOL') not null, \
+        #need change scienetific number into actual number for 
+        query = ('''insert into lines (nu double not null, a double not null, \
+                                       gammar_air double null, n_air double null, delta_air double null, \
+                                       elower double not null, gp smallint not null, gamma_H2 double not null default \
+                                       0.0, n_H2 double not null default 0.0, delta_H2 double not null default 0.0, \
+                                       gamma_He double not null default 0.0, n_He double not null default 0.0, \
+                                       delta_He double not null default 0.0, data_type enum('HITRAN', 'EXOMOL') not null, \
                                        version varchar(10) not null, particle_id int not null, line_id int unsigned \
-                                       not null auto_increment primary key) values('%d', '%d', '%d', '%d', '%d',\
-                                       '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%d')''' % (*data, 'HITRAN', '2012', 1)) 
+                                       not null auto_increment primary key) values('%s', '%s', '%s', '%s', '%s',\
+                                       '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')''' % (*data, 'HITRAN', '2012', 1, 'null')) 
     #or this: (line, 'HITRAN', '2012', 1)
     #should He and H2 stuff default as null or 0.0?!!!!!!!!!!
     #line table arrangement corresponding to tuple indexes: 
@@ -103,7 +106,7 @@ try:
         data = line.split(' ')
         query = ('''insert into partitions (temp float not null, partition float not null, \ 
         particle_id int not null, partition_id int unsigned not null auto_increment \
-        primary key) values('%d', '%d', '%d', '%d')''' % (*data, 1))
+        primary key) values('%s', '%s', '%s', '%s')''' % (*data, 1, 'null'))
         cursor.execute(query) #maybe print the id each time to mnake sure it runs correctly?
     #commit changes
     db.commit()
@@ -118,9 +121,10 @@ finally:
     cursor.close()
     
 
-
+'''
 def main():
     pass
 
 if __name__ == '__main__':
     main()
+'''
