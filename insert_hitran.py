@@ -12,6 +12,15 @@ Created on Thu Jun 20 13:13:51 2019
 import MySQLdb
 
 ###############
+def create_database():
+    db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@')
+    cursor = db.cursor()
+    cursor.execute('drop database if exists linelist')
+    cursor.execute('create database linelist')
+    db.commit()
+    cursor.close()
+    db.close()
+
 
 def sql_order(query):
     #connect to the database
@@ -20,33 +29,27 @@ def sql_order(query):
     
     #create a cursor object
     cursor = db.cursor()
-    #create table 1 for particles
-    #create the tables
-    cursor.execute(query)
-    db.commit()
-    cursor.close()
-    db.close()
     
-    '''
     try: 
         #execute order in mysql
         cursor.execute(query)
         #commit changes
         db.commit()
-    except: 
+    except Exception as e: 
         #if errors occur
         db.rollback()
+        print(e)
         
     finally: 
         #close up cursor and connections
         cursor.close()
         db.close()
-    '''
+    
 ################
         
 #molecule_name format for example, CO2, is (13C)(16O)2
-table1 = '''create table if not exists particles (molecule_name varchar(12) not null, \
-iso_abundance double not null, molecular_mass double not null, particle_id \
+particles_table = '''create table if not exists particles (molecule_name varchar(12) not null, \
+iso_name varchar(20) not null, iso_abundance double not null, iso_mass double not null, particle_id \
 int unsigned not null auto_increment primary key); '''
 
 #create table 2 for all the lines for each particle in table 1
@@ -54,7 +57,7 @@ int unsigned not null auto_increment primary key); '''
 #a stands for einstein coefficient
 #gp stands for the degeneracy of the lower state
 #is gp good with smallint??? should H2 He stuff default as null or 0.0
-table2 = '''create table if not exists `lines` (nu double not null, a double not null, \
+lines_table = '''create table if not exists transitions (nu double not null, A double not null, \
 gammar_air double null, n_air double null, delta_air double null, \
 elower double not null, gp smallint not null, gamma_H2 double null, \
 n_H2 double null, delta_H2 double null, gamma_He double null, n_He double null, \
@@ -65,12 +68,12 @@ not null auto_increment primary key); '''
 #create table 3 for the partition coefficient across all temperatures for each
 #particle in table 1
 #should temoerature in K be float or int? also partition
-table3 = '''create table if not exists partitions (temp float not null, `partition` float not null, \
+partitions_table = '''create table if not exists partitions (temperature float not null, `partition` float not null, \
 particle_id int not null, partition_id int unsigned not null auto_increment \
 primary key); '''
 
 #insert CO data into table particle
-CO = '''insert ignore into particles values ('%s', '%s', '%s', null); ''' % ('(12C)(16O)', 0.986544, 27.994915)
+CO = '''insert ignore into particles values ('%s', '%s', '%s', '%s', null); ''' % ('CO', '(12C)(16O)', 0.986544, 27.994915)
 #why the ignore statement is not working????
 ##########################
 
@@ -84,31 +87,35 @@ def insert_hitran(filename):
     
     #insert the data of all lines for CO into table lines
     # with open('CO(copy).out') as infile: #
-    '''try:'''
+    try:
         #open the file
-    infile = open(filename)
-    for line in infile:
-        data = line.split('\t')
-        query = ('''insert into `lines` values('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', \
-                                               '%s', 'HITRAN', '2012', 1, null)''' % (data[0], data[1], data[2], data[3], \
-                                               data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11], data[12]))
-        cursor.execute(query)
+        infile = open(filename)
+        for line in infile:
+            data = line.split()
+            for i in range(len(data)): 
+                if data[i] == '#':
+                    data[i] = None
+
+            query = "insert into transitions values(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'HITRAN', '2012', 1, null)"
+            cursor.execute(query, data)
         #maybe print the id each time to mnake sure it runs correctly?
         #should He and H2 stuff default as null or 0.0?!!!!!!!!!!
         #line table arrangement corresponding to tuple indexes: 
         #(nu, a, gammar_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, data_type, version, particle_id, line_id)
         #( 0, 1,      2,       3,       4,        5,    6,    7,       8,      9,       10,      11,    12,        13,       14,        15,        16  )
         #commit changes
-    db.commit()
-    infile.close()
-    '''
-    except: 
+        db.commit()
+        infile.close()
+    
+    except Exception as e:
         #if errors occur
         db.rollback()
-    finally: '''
+        print('insert hitran data failed', e)
+      
+    finally: 
         #close up cursor and connection
-    cursor.close()
-    db.close()
+        cursor.close()
+        db.close()
         
 #################
         
@@ -130,17 +137,17 @@ def insert_partition(filename):
         #open the file
         infile = open(filename)
         for line in infile:
-           data = line.split(' ')
-           query = ('''insert into partitions (temp float not null, `partition` float not null, \ 
-           particle_id int not null, partition_id int unsigned not null auto_increment \
-           primary key) values('%s', '%s', 1, null)''' % (data[0], data[1]))
+           data = line.split()
+           query = ('''insert into partitions (temperature, `partition`, particle_id, \
+                                               partition_id) values('%s', '%s', 1, null)''' % (data[0], data[1]))
            cursor.execute(query) #maybe print the id each time to mnake sure it runs correctly?
         #commit changes
         db.commit()
         infile.close()
-    except: 
+    except Exception as e: 
         #if errors occur
         db.rollback()
+        print('insert partition failed', e)
     finally: 
         #close up cursor and connection
         cursor.close()
@@ -149,11 +156,13 @@ def insert_partition(filename):
 ##################
         
 def main():
+    
+    create_database()
     #create the tables
     #can i combine them? probably
-    sql_order(table1)
-    sql_order(table2)
-    sql_order(table3)
+    sql_order(particles_table)
+    sql_order(lines_table)
+    sql_order(partitions_table)
     
     #insert CO data in table 1
     sql_order(CO)
@@ -163,7 +172,6 @@ def main():
     
     #insert all the pratition functions into the table
     insert_partition('/home/toma/Desktop/12C-16O__Li2015_partition.pf')
-    
     
     
     

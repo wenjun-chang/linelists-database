@@ -71,8 +71,8 @@ try:
 infile = open('/home/toma/Desktop/12C-16O__Li2015.states')
 for line in infile:
     data = line.split(' ')
-    query = ('''insert into states (state_id mediumint not null, E double not null, \
-                                        g smallint not null, J smallint not null, particle_id int not null, id int unsigned \
+    query = ('''insert into `states` (state_id mediumint not null, `E` double not null, \
+                                        `g` smallint not null, `J` smallint not null, particle_id int not null, `id` int unsigned \
                                         not null auto_increment primary key) values('%s', '%s', '%s', '%s', '%s', '%s')''' \
                                         % (data[0], data[1], data[2], data[3], 1, 'null')) 
 

@@ -26,7 +26,7 @@ def get_partition(T): #temp has to be a float i.g. 19.0
     cursor = db.cursor()
     
     #query for the partition function given T, temperature
-    query = '''select partition from partitions where temp = {}'''.format(T)
+    query = '''select `partition` from partitions where temp = {}'''.format(T)
     
     try: 
         #there should only be one single value, otherwise the database is wrong
@@ -185,7 +185,7 @@ def compute_all(v, T, p, molecule, data_type, version):
     
     #query for all the lines of the specified molecule from the user given nu, data_type and version
     query = '''select nu, a, gammar_air, n_air, delta_air, elower, gp, gamma_H2, \
-    n_H2, delta_H2, gamma_He, n_He, delta_He from lines where particle_id = {} AND \
+    n_H2, delta_H2, gamma_He, n_He, delta_He from `lines` where particle_id = {} AND \
     data_type = {} AND version = {}'''.format(particle_id, data_type, version)
     
     try: 
