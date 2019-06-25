@@ -10,8 +10,10 @@ Created on Thu Jun 20 13:13:51 2019
 #(did not do drop database or use database...add later)
 
 import MySQLdb
+from query_functions import sql_order
 
 ###############
+
 def create_database():
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@')
     cursor = db.cursor()
@@ -20,32 +22,6 @@ def create_database():
     db.commit()
     cursor.close()
     db.close()
-
-
-def sql_order(query):
-    #connect to the database
-    db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
-    #do put actual password when run
-    
-    #create a cursor object
-    cursor = db.cursor()
-    
-    try: 
-        #execute order in mysql
-        cursor.execute(query)
-        #commit changes
-        db.commit()
-    except Exception as e: 
-        #if errors occur
-        db.rollback()
-        print(e)
-        
-    finally: 
-        #close up cursor and connections
-        cursor.close()
-        db.close()
-    
-################
         
 #molecule_name format for example, CO2, is (13C)(16O)2
 particles_table = '''create table if not exists particles (molecule_name varchar(12) not null, \
@@ -58,7 +34,7 @@ int unsigned not null auto_increment primary key); '''
 #gp stands for the degeneracy of the lower state
 #is gp good with smallint??? should H2 He stuff default as null or 0.0
 lines_table = '''create table if not exists transitions (nu double not null, A double not null, \
-gammar_air double null, n_air double null, delta_air double null, \
+gamma_air double null, n_air double null, delta_air double null, \
 elower double not null, gp smallint not null, gamma_H2 double null, \
 n_H2 double null, delta_H2 double null, gamma_He double null, n_He double null, \
 delta_He float null, data_type enum('HITRAN', 'EXOMOL') not null, \
@@ -101,7 +77,7 @@ def insert_hitran(filename):
         #maybe print the id each time to mnake sure it runs correctly?
         #should He and H2 stuff default as null or 0.0?!!!!!!!!!!
         #line table arrangement corresponding to tuple indexes: 
-        #(nu, a, gammar_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, data_type, version, particle_id, line_id)
+        #(nu, a, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, data_type, version, particle_id, line_id)
         #( 0, 1,      2,       3,       4,        5,    6,    7,       8,      9,       10,      11,    12,        13,       14,        15,        16  )
         #commit changes
         db.commit()

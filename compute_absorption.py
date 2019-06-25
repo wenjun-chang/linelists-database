@@ -87,7 +87,7 @@ def get_particle(mol_name):
 def compute_one_absorption(line, v, T, p, Q, iso_abundance):
     #line is a tuple returned by fetchone() operation
     #parameters for fectone() data corresponding to tuple indexes: 
-    #(nu, a, gammar_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He)
+    #(nu, a, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He)
     #(0,  1,     2,       3,       4,        5,     6,    7,       8,      9,      10,      11,     12   )
     
     #just name the variables to make things clear and easy to check
@@ -141,7 +141,7 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance):
     
 
     #compute v_ij_star for f 
-    #v_ij_star = v_ij + delta_net * p, where delta_net is computed in similar fashion to gammar_p_T
+    #v_ij_star = v_ij + delta_net * p, where delta_net is computed in similar fashion to gamma_p_T
     if delta_H2 != 0.0 and delta_He != 0.0: #if both delta exists
         v_ij_star = v_ij + p * (delta_H2 * 0.85 + delta_He * 0.15)
         
@@ -184,7 +184,7 @@ def compute_all(v, T, p, molecule, data_type, version):
     cursor = db.cursor()
     
     #query for all the lines of the specified molecule from the user given nu, data_type and version
-    query = '''select nu, a, gammar_air, n_air, delta_air, elower, gp, gamma_H2, \
+    query = '''select nu, a, gamma_air, n_air, delta_air, elower, gp, gamma_H2, \
     n_H2, delta_H2, gamma_He, n_He, delta_He from `lines` where particle_id = {} AND \
     data_type = {} AND version = {}'''.format(particle_id, data_type, version)
     
