@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Created on Thu Jun 27 11:14:43 2019
+
+@author: toma
+"""
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
 Created on Thu Jun 20 13:12:27 2019
 
 @author: toma
@@ -15,6 +23,9 @@ from query_functions import fetch
 import numpy as np
 import time
 from astropy.modeling.models import Voigt1D
+
+
+AMU_TO_G = 1.66053904e-24
 
 ########################
 
@@ -38,20 +49,20 @@ def get_partition(T): #temp has to be a float i.g. 19.0
 #get the particle id and the isotopologue abundance of the input iso_name 
 #iso_name format for example, CO2, is (13C)(16O)2
 def get_particle(iso_name):
-    query = "SELECT particle_id, iso_abundance FROM particles WHERE iso_name = '{}'".format(iso_name)
+    query = "SELECT particle_id, iso_abundance, iso_mass FROM particles WHERE iso_name = '{}'".format(iso_name)
     
     data = fetch(query)
     
     if len(data) != 1:
         raise Exception('should have exactly one row for a specific particle')
     
-    #data[0] = (particle_id, iso_abundance)
+    #data[0] = (particle_id, iso_abundance, iso_mass)
     return data[0]
     
 ##########################
 
 #absorption(v, T, p) = S_ij(T) * f(v, v_ij, T, p)        
-def compute_one_absorption(line, v, T, p, Q, iso_abundance):
+def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     #line is a tuple returned by fetchone() operation
     #parameters for fectone() data corresponding to tuple indexes: 
     #(nu, a, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He)
@@ -126,10 +137,21 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance):
         
     #compute normalized line shape function f(v, v_ij, T, p)
     #############???????!!!!!!!!!!!!!!!!!!
-    f = gamma_p_T / (math.pi * (math.pow(gamma_p_T, 2) + (v - v_ij_star)**2))
+    '''f = gamma_p_T / (math.pi * (math.pow(gamma_p_T, 2) + (v - v_ij_star)**2))'''
     
+    
+    
+    #what is f_0
+    droppler_broad = math.sqrt((8 * k_B * T * math.log(2)) / (iso_mass * AMU_TO_G * c**2)) * v_ij_star
+    
+    absorption_function = Voigt1D(x_0=v_ij_star, amplitude_L=S_ij, fwhm_L=gamma_p_T, fwhm_G=0.00000001)
+    
+    absorption = absorption_function(v)
+    
+    '''
     #compute absorption cross section
     absorption = S_ij * f
+    '''
     return absorption
 
 ###################
@@ -146,6 +168,7 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
     print(particle_data)
     particle_id = particle_data[0]
     iso_abundance = particle_data[1]
+    iso_mass = particle_data[2]
 
      #connect to the database
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
@@ -173,7 +196,7 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
         #fetch one line
         line = cursor.fetchone()
         #use the line and given input to compute absorption and put it into a list
-        absorption = compute_one_absorption(line, v, T, p, Q, iso_abundance)
+        absorption = compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass)
         absorption_cross_section += absorption
     
     #close up cursor and connection
