@@ -13,7 +13,6 @@ import MySQLdb
 def sql_order(query):
     #connect to the database
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
-    #do put actual password when run
     
     #create a cursor object
     cursor = db.cursor()
@@ -34,3 +33,45 @@ def sql_order(query):
         db.close()
     
 ################
+
+def sql_bulk_order(query):
+    #connect to the database
+    db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
+    
+    #create a cursor object
+    cursor = db.cursor()
+    
+    try: 
+        #execute order in mysql
+        cursor.executemany(query)
+        #commit changes
+        db.commit()
+    except Exception as e: 
+        #if errors occur
+        db.rollback()
+        print(e)
+        
+    finally: 
+        #close up cursor and connections
+        cursor.close()
+        db.close()
+    
+################
+        
+def fetch(query): 
+    #connect to the database
+    db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
+    #do put actual password when run
+    
+    #create a cursor object
+    cursor = db.cursor()
+  
+    #there should only be one single value, otherwise the database is wrong
+    cursor.execute(query)
+    data = cursor.fetchall()
+
+    #close up cursor and connection
+    cursor.close()
+    db.close()
+    
+    return data

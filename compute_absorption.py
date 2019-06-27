@@ -11,76 +11,43 @@ Created on Thu Jun 20 13:12:27 2019
 
 import MySQLdb
 import math
+from query_functions import fetch
+import numpy as np
+import time
+from astropy.modeling.models import Voigt1D
 
 ########################
 
-#given input v(nu), T, p, molecule, data_type, and version
+#given input v(nu), T, p, iso, source, and version
 
 #fetch the partition function value given an input T, temperature
 def get_partition(T): #temp has to be a float i.g. 19.0
-    #connect to the database
-    db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
-    #do put actual password when run
-    
-    #create a cursor object
-    cursor = db.cursor()
     
     #query for the partition function given T, temperature
-    query = '''select `partition` from partitions where temp = {}'''.format(T)
+    query = "SELECT `partition` FROM partitions WHERE temperature = {}".format(T)
     
-    try: 
-        #there should only be one single value, otherwise the database is wrong
-        cursor.execute(query)
-        data = cursor.fetchall()
-        
-        #check if the database is correct
-        if (data[1] == True):
-            raise Exception('should only have one partition value given a specific T')
-        
-        partition_value = data[0][0]
-        return partition_value
+    data = fetch(query)
     
-    except: 
-        #if errors occur
-        db.rollback()
+    if len(data) != 1:
+        raise Exception('should have exactly one partition value given a specific T')
         
-    finally: 
-        #close up cursor and connection
-        cursor.close()
-        db.close()
+    return data[0][0]
 
 #######################
 
-#get the isotope abundance of the input molecule  
-#molecule_name format for example, CO2, is (13C)(16O)2
-def get_particle(mol_name):
-     #connect to the database
-    db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist')
-    #do put actual password when run
+#get the particle id and the isotopologue abundance of the input iso_name 
+#iso_name format for example, CO2, is (13C)(16O)2
+def get_particle(iso_name):
+    query = "SELECT particle_id, iso_abundance FROM particles WHERE iso_name = '{}'".format(iso_name)
     
-    #create a cursor object
-    cursor = db.cursor()
+    data = fetch(query)
     
-    #query for the partition function given T, temperature
-    query = '''select iso_abundance from particles where molecule_name = {}'''.format(mol_name)
+    if len(data) != 1:
+        raise Exception('should have exactly one row for a specific particle')
     
-    try: 
-        cursor.execute(query)
-        data = cursor.fetchone()
-        
-        particle_id = data[0]
-        iso_abundance = data[1]
-        return (particle_id, iso_abundance)
+    #data[0] = (particle_id, iso_abundance)
+    return data[0]
     
-    except: 
-        #if errors occur
-        db.rollback()
-        
-    finally: 
-        #close up cursor and connection
-        cursor.close()
-        db.close()
-
 ##########################
 
 #absorption(v, T, p) = S_ij(T) * f(v, v_ij, T, p)        
@@ -105,12 +72,14 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance):
     n_He = line[11]
     delta_He = line[12]
     
-    #store the value of speed of light in m/s
-    c = 299792458 
-    #planck constant
-    h = 6.62607004 * math.pow(10, -34)
+    #store the value of speed of light in cm/s
+    c = 2.99792458e10
+    #planck constant erg*s
+    h = 6.62606885e-27
     #boltzmann constant
-    k_B = 1.38064852 * math.pow(10, -23)
+    k_B = 1.38064852e-16
+    #reference Temperature in K
+    T_ref = 296 
     #store the value of c_2 = h * c / k_B
     c_2 = h * c / k_B
     
@@ -123,32 +92,32 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance):
     #gamma_p_T = p * ((T_ref / T)^n_H2 * gamma_H2 * f_H2 + (T_ref / T)^n_He * gamma_He * f_He)
     #where f_H2 = 0.85 and f_He = 0.15
     #if either n_H2 or n_He does not exist, f_H2/He (the exisiting one) = 1.0
-    if n_H2 != 0.0 and gamma_H2 != 0.0 and n_He != 0.0 and gamma_He != 0.0:
-        gamma_p_T = p * (math.pow((296 / T), n_H2) * gamma_H2 * 0.85 + math.pow((296 / T),n_He) * gamma_He * 0.15)
+    if n_H2 is not None and gamma_H2 is not None and n_He is not None and gamma_He is not None:
+        gamma_p_T = p * (math.pow(T_ref/ T, n_H2) * gamma_H2 * 0.85 + math.pow(T_ref / T,n_He) * gamma_He * 0.15)
         
     #if n_H2 does not exist, f_He = 1
-    elif (n_H2 == 0.0 or gamma_H2 == 0.0) and (n_He != 0.0 and gamma_He != 0.0):
-        gamma_p_T = p * math.pow((296 / T), n_He) * gamma_He
+    elif (n_H2 is None  or gamma_H2 is None) and (n_He is not None and gamma_He is not None):
+        gamma_p_T = p * math.pow(T_ref / T, n_He) * gamma_He
     
     #if n_He does not exist, f_H2 = 1
-    elif (n_He == 0.0 or gamma_He == 0.0) and (n_H2 != 0.0 and gamma_H2 != 0.0):
-        gamma_p_T = p * math.pow((296 / T), n_H2) * gamma_H2
+    elif (n_He is None or gamma_He is None) and (n_H2 is not None and gamma_H2 is not None):
+        gamma_p_T = p * math.pow(T_ref / T, n_H2) * gamma_H2
     
     #if both n_H2 or n_He does not exist
     #gamma_p_T = p * (T_ref / T)^n_air * gamma_air
     else:
-        gamma_p_T = p * math.pow((296 / T), n_air) * gamma_air
+        gamma_p_T = p * math.pow(T_ref / T, n_air) * gamma_air
     
 
     #compute v_ij_star for f 
     #v_ij_star = v_ij + delta_net * p, where delta_net is computed in similar fashion to gamma_p_T
-    if delta_H2 != 0.0 and delta_He != 0.0: #if both delta exists
+    if delta_H2 != None and delta_He != None: #if both delta exists
         v_ij_star = v_ij + p * (delta_H2 * 0.85 + delta_He * 0.15)
         
-    elif delta_H2 == 0.0 and delta_He != 0.0: #when delta_H2 does not exist, f_He = 1.0
+    elif delta_H2 == None and delta_He != None: #when delta_H2 does not exist, f_He = 1.0
         v_ij_star = v_ij + p * delta_He
     
-    elif delta_He == 0.0 and delta_H2 != 0.0: #when delta_He does not exist, f_H2 = 1.0
+    elif delta_He == None and delta_H2 != None: #when delta_He does not exist, f_H2 = 1.0
         v_ij_star = v_ij + p * delta_H2
         
     else: #when both delta_H2 and delta_He does not exist, use delta_air
@@ -156,7 +125,8 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance):
         
         
     #compute normalized line shape function f(v, v_ij, T, p)
-    f = gamma_p_T / (math.pi * (math.pow(gamma_p_T, 2) + math.pow((v - v_ij_star), 2)))
+    #############???????!!!!!!!!!!!!!!!!!!
+    f = gamma_p_T / (math.pi * (math.pow(gamma_p_T, 2) + (v - v_ij_star)**2))
     
     #compute absorption cross section
     absorption = S_ij * f
@@ -164,15 +134,16 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance):
 
 ###################
     
-#given input v, T, p, molecule, data_type, and version, fetch all the line data of the input molecule
+#given input v, T, p, iso_name, source, and version, fetch all the line data of the input iso_name
 #use the parameters feteched to compute absorption cross section with the help of other functions
-def compute_all(v, T, p, molecule, data_type, version): 
+def compute_all(v, T, p, iso_name, line_source, default=False): 
     
     #get paritition using the correct function
     Q = get_partition(T)
     
     #get particle_id and iso_abundance using the correct function
-    particle_data = get_particle(molecule)
+    particle_data = get_particle(iso_name)
+    print(particle_data)
     particle_id = particle_data[0]
     iso_abundance = particle_data[1]
 
@@ -183,58 +154,83 @@ def compute_all(v, T, p, molecule, data_type, version):
     #create a cursor object
     cursor = db.cursor()
     
-    #query for all the lines of the specified molecule from the user given nu, data_type and version
-    query = '''select nu, a, gamma_air, n_air, delta_air, elower, gp, gamma_H2, \
-    n_H2, delta_H2, gamma_He, n_He, delta_He from `lines` where particle_id = {} AND \
-    data_type = {} AND version = {}'''.format(particle_id, data_type, version)
+    #query for all the lines of the specified isotopologue from the user given nu, line_source
+    query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, gp, gamma_H2, \
+    n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
+    line_source = '{}'".format(particle_id, line_source)
+    print(query)
     
-    try: 
-        #this gives us a table of all the parameters we desire in a table in mysql
-        cursor.execute(query)
-        #rowcount is a read-only attribute and returns the number of rows that were affected by the execute() method.
-        rows = cursor.rowcount
-        #the table could be gigantic, therefore fetchall() could be slow, therefore
-        #would rather fetch one single line as a tuple ( , , , ) each time and
-        #compute the absorption for that line, store it in a list (just to be safe, not necessary), and sum it. 
-        absorb_lst = []
-        for i in range(len(rows)):
-            #fetch one line
-            line = cursor.fetchone()
-            #use the line and given input to compute absorption and put it into a list
-            absorption = compute_one_absorption(line, v, T, p, Q, iso_abundance)
-            absorb_lst[i] = absorption
-        
-        #sum up the absorption from all lines
-        absorption_cross_section = sum(absorb_lst)
-        return absorption_cross_section
+    #this gives us a table of all the parameters we desire in a table in mysql
+    cursor.execute(query)
+    #rowcount is a read-only attribute and returns the number of rows that were affected by the execute() method.
+    rows = cursor.rowcount
+    print(rows)
+    #the table could be gigantic, therefore fetchall() could be slow, therefore
+    #would rather fetch one single line as a tuple ( , , , ) each time and
+    #compute the absorption for that line, store it in variable and sum it over iterations. 
+    absorption_cross_section = 0.0
+    for i in range(rows):
+        #fetch one line
+        line = cursor.fetchone()
+        #use the line and given input to compute absorption and put it into a list
+        absorption = compute_one_absorption(line, v, T, p, Q, iso_abundance)
+        absorption_cross_section += absorption
     
-    except: 
-        #if errors occur
-        db.rollback()
-        
-    finally: 
-        #close up cursor and connection
-        cursor.close()
-        db.close()
+    #close up cursor and connection
+    cursor.close()
+    db.close()
+    
+    return absorption_cross_section
         
 #########################
 
-#obtain input v, T, p, molecule, data_type, and version from the user
+#obtain input v, T, p, iso_name, line_source from the user
 def main():
+    #1,2,3,4,5
+    #1,10,100,1000,10000
+    #1,2,4,8,16
+    
+    start_time = time.time()
+    
+    wavelengths = np.logspace(np.log10(0.3e-4), np.log10(30e-4), 4616)
+    wavenums = 1.0/wavelengths
+    #wavelengths = np.exp(np.linspace(np.log(0.3e-4), np.log(30e-4), 4616))
+    
+    absorption_cross_section = compute_all(wavenums, 2000, 0.1, '(12C)(16O)', 'HITRAN 2016')
+    print('absorption_cross_section is', absorption_cross_section)
+    np.save('/home/toma/Desktop/absorption.npy', absorption_cross_section)
+    
+    print("--- %s seconds ---" % (time.time() - start_time))
+    
+    '''
+    #use this for if for default line source
+    "SELECT nu, A, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, \
+    delta_He FROM transitions INNER JOIN particles ON particles.default_line_source = transitions.line_source \
+    WHERE particles.particle_id = {};".format(particle_id)'''
+    
+    
+    '''
     print('Hello! Welcome to Toma\'s linelist database, sir.')
     toma = input('Do you want to obtain absorption cross section data today, Sir? \n Enter: Y or n')
     while toma.lower == 'y':
-        molecule = input('What molecule/isotope are you looking for? Format example: CO2 = (12C)(16O)2')
-        data_type = input('What type of data do Sir wish to compute from? \n Enter: HITRAN or EXOMOL')
-        version = input('What version of {} do Sir desire?'.format(data_type))
+        isotopologue = input('What isotopologue of a molecule are you looking for? Format example: CO2 = (12C)(16O)2')
+        source = input('What type of data do Sir wish to compute from? \n Enter: HITRAN or EXOMOL')
+        version = input('What version of {} do Sir desire?\nEnter default to compute using \
+        the default line source best for this isotopologue'.format(line_source))
+        
+        ####a list of version for that data
+        
+        
+        line_source = source + ' ' + version
         v = input('At what wavenumber (cm^-1) Sir?')
         T = input('At what temperature (K) Sir?')
         p = input('At what pressure (atm) Sir?')
         
-        output = compute_all(v, T, p, molecule, data_type, version)
-        print('The absorption cross section for {} in {}, {} at {}, {}, {} is {}'.format(molecule, data_type, version, v, T, p, output))
+        output = compute_all(v, T, p, isotopologue, line_source)
+        print('The absorption cross section for {} in {}, {} at {}, {}, {} is {}'.format(isotopologue, line_source, v, T, p, output))
         toma = input('Do you want to obtain another absorption cross section data, Sir? \n Enter: Y or n')
     quit()
+    '''
 
 if __name__ == '__main__':
     main()
