@@ -33,10 +33,10 @@ VARCHAR(25) NOT NULL, particle_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY K
 #nu stands for transition wavenumber
 #a stands for einstein coefficient
 #gp stands for the degeneracy of the lower state
-lines_table_create_query = "CREATE TABLE IF NOT EXISTS transitions (nu DOUBLE NOT NULL, A DOUBLE NOT NULL, \
+transitions_table_create_query = "CREATE TABLE IF NOT EXISTS transitions (nu DOUBLE NOT NULL, A DOUBLE NOT NULL, \
 gamma_air DOUBLE, n_air DOUBLE, delta_air DOUBLE, elower DOUBLE NOT NULL, gp SMALLINT NOT NULL, gamma_H2 DOUBLE, \
 n_H2 DOUBLE, delta_H2 DOUBLE, gamma_He DOUBLE, n_He DOUBLE, delta_He DOUBLE, line_source VARCHAR(25) NOT NULL, \
-particle_id INT NOT NULL, line_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY);"
+particle_id INT NOT NULL, line_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY) ROW_FORMAT=COMPRESSED;"
 
 #create table for the partition coefficient across all temperatures for each particle in table 1
 partitions_table_create_query = "CREATE TABLE IF NOT EXISTS partitions (temperature FLOAT NOT NULL, `partition` FLOAT NOT NULL, \
@@ -72,7 +72,7 @@ def main():
     
     #create the tables
     sql_order(particles_table_create_query)
-    sql_order(lines_table_create_query)
+    sql_order(transitions_table_create_query)
     sql_order(partitions_table_create_query)
     sql_order(states_table_create_query)
     sql_order(broad_params_table_create_query)

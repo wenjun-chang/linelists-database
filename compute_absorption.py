@@ -220,7 +220,7 @@ def main():
     wavenums = 1.0/wavelengths
     #wavelengths = np.exp(np.linspace(np.log(0.3e-4), np.log(30e-4), 4616))
     
-    absorption_cross_section = compute_all(wavenums, 2000, 0.1, '(12C)(16O)', 'HITRAN 2016')
+    absorption_cross_section = compute_all(wavenums, 2000, 0.1, '(12C)(16O)', 'HITRAN_2016')
     print('absorption_cross_section is', absorption_cross_section)
     np.save('/home/toma/Desktop/absorption.npy', absorption_cross_section)
     
@@ -245,7 +245,7 @@ def main():
         ####a list of version for that data
         
         
-        line_source = source + ' ' + version
+        line_source = source + '_' + version
         v = input('At what wavenumber (cm^-1) Sir?')
         T = input('At what temperature (K) Sir?')
         p = input('At what pressure (atm) Sir?')

@@ -15,7 +15,7 @@ import time
 ###############
 
 #insert CO data into table particle
-CO = "INSERT IGNORE INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % ('CO', '(12C)(16O)', 0.986544, 27.994915, 'HITRAN 2016')
+CO = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % ('CO', '(12C)(16O)', 0.986544, 27.994915, 'HITRAN_2016')
 
 ##########################
 
@@ -29,14 +29,23 @@ def insert_hitran(filename):
     #insert the data of all lines for CO into table lines
     # with open('CO(copy).out') as infile: #
     try:
+        
+        #
+        f = open('/home/toma/Desktop/hitran.txt', 'w') 
+        
+        
+        
         #open the file
         infile = open(filename)
         
+        '''
         #create a list of all the queries to bulk insert it
         bulk_data = []
         counter = 0
         
-        query = "INSERT INTO transitions VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'HITRAN 2016', 1, null)"
+        query = "INSERT INTO transitions VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'HITRAN_2016', 1, null)"
+        '''
+        
         
         for line in infile:
             data = line.split()
@@ -51,7 +60,7 @@ def insert_hitran(filename):
             if data[12] is None: 
                 data[12] = 0.0
      
-            query = "INSERT INTO transitions VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'HITRAN 2016', 1, null)"
+            query = "INSERT INTO transitions VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'HITRAN_2016', 1, null)"
             cursor.execute(query, data)
             '''
             
@@ -63,8 +72,21 @@ def insert_hitran(filename):
                 raise Exception('should have at least one gamma value')
             if data[3] is None and data[8] is None and data[11] is None:
                 raise Exception('should have at least one n value')
-                
             
+            #
+            #simplify it and pass on these values later by variable
+            data.append('HITRAN_2016')
+            data.append(1)
+            data.append(None)
+            
+            #
+            for item in data: 
+                f.write("%s " % item)
+            f.write("\n")
+            
+            
+            
+            '''
             bulk_data.append(tuple(data))
             
             counter += 1
@@ -73,7 +95,7 @@ def insert_hitran(filename):
         #print(np.array(bulk_data).shape())
         print("Bulk inserting hitran data...")
         cursor.executemany(query, bulk_data)
-        
+        '''
         
         #commit changes and close file
         db.commit()

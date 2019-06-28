@@ -28,6 +28,9 @@ db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='line
 cursor = db.cursor()
 
 
+'''LOAD DATA LOCAL INFILE '/home/toma/Desktop/hitran.txt' INTO TABLE transitions FIELDS TERMINATED BY '\b' LINES TERMINATED BY '\r\n';'''
+'''LOAD DATA LOCAL INFILE '/home/toma/Desktop/exomol.txt' INTO TABLE transitions FIELDS TERMINATED BY '\b' LINES TERMINATED BY '\r\n';'''
+
 #disable autocommit to improve performance
 sql_order('SET autocommit = 0')
 
@@ -51,13 +54,16 @@ gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source, particle_id, li
 VALUES(%s, %s, null, null, null, %s, %s, %s, %s, null, %s, %s, null, %s, %s, null)"
 
 counter = 0
+
+#
+f = open('/home/toma/Desktop/exomol.txt', 'w') 
+
 for i in range(len(upper_ids)):
     upper_id = int(upper_ids[i])
     lower_id = int(lower_ids[i])
     A = As[i]
     
     E_upper = Es[upper_id - 1]
-    
     E_lower = Es[lower_id - 1]
     gp = gs[lower_id - 1]
     J_lower = int(Js[lower_id - 1])
@@ -103,7 +109,17 @@ for i in range(len(upper_ids)):
     
     v_ij = E_upper - E_lower
     
-    exomol_data.append((v_ij, A, E_lower, gp, gamma_H2, n_H2, gamma_He, n_He, 'EXOMOL Li2015', 1))
+    #
+    data = [v_ij, A, 'null', 'null', 'null', E_lower, gp, gamma_H2, n_H2, 'null', gamma_He, n_He, 'null', 'EXOMOL_Li2015', 1, 'null']
+    for item in data: 
+        f.write("%s " % item)
+    f.write("\n")
+    
+    
+    '''
+    exomol_data.append((v_ij, A, E_lower, gp, gamma_H2, n_H2, gamma_He, n_He, 'EXOMOL_Li2015', 1))
+    
+    
     
     counter += 1
     #print("Processing line {} for exomol data".format(counter))
@@ -113,11 +129,11 @@ print("Bulk inserting exomol data...")
 bulk_time = time.time()
 
 #test speed for mega data
-'''
+
 for i in range(13):
     exomol_data += exomol_data
     print(len(exomol_data))
-'''
+
 
 sql_bulk_order(query_insert_exomol, exomol_data)
 db.commit()
@@ -152,3 +168,5 @@ cursor.close()
 db.close()
 
 print("Finished in %s seconds" % (time.time() - start_time))
+
+'''
