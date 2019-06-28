@@ -7,6 +7,7 @@ Created on Tue Jun 25 11:56:36 2019
 """
 
 import MySQLdb
+import time
 
 ##############
 
@@ -34,7 +35,7 @@ def sql_order(query):
     
 ################
 
-def sql_bulk_order(query):
+def sql_bulk_order(query, data):
     #connect to the database
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
     
@@ -43,9 +44,11 @@ def sql_bulk_order(query):
     
     try: 
         #execute order in mysql
-        cursor.executemany(query)
+        t = time.time()
+        cursor.executemany(query, data)
         #commit changes
         db.commit()
+        print("insert in %s seconds" % (time.time() - t))
     except Exception as e: 
         #if errors occur
         db.rollback()

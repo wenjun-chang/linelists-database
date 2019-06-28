@@ -11,7 +11,7 @@ Created on Fri Jun 21 16:02:30 2019
 
 import MySQLdb
 import numpy as np
-from query_functions import sql_order
+from query_functions import sql_bulk_order, sql_order
 import time
 
 DEFAULT_GAMMA = 0.0700
@@ -24,115 +24,130 @@ start_time = time.time()
 #connect to the database
 db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
 
-def insert_exomol_file(db, filename, query_format, use_cols):
-    try: 
-        cursor = db.cursor()
-        infile = open(filename)
-        for line in infile:
-            data = np.array(line.split())
-            query = query_format.format(*data[np.array(use_cols)])
-            print(query)
-            cursor.execute(query)
-       
-        db.commit()
-        infile.close()
-    
-    except Exception as e:
-        db.rollback()
-        print(e)
-        
-#disable autocommit to improve performance
-sql_order('SET autocommit = 0')
-
-#insert partitions file
-insert_exomol_file(db, '/home/toma/Desktop/12C-16O__Li2015_partition.pf', \
-                   "INSERT INTO partitions (temperature, `partition`, particle_id, \
-                   partition_id) VALUES({}, {}, 1, null)", [0, 1])
-       
-#insert states file
-insert_exomol_file(db, '/home/toma/Desktop/12C-16O__Li2015.states', \
-                   "INSERT INTO states (state_id, E, g, J, particle_id, id) VALUES({}, {}, {}, {}, 1 , null)",\
-                   [0, 1, 2, 3])
-
-#insert broad H2 file
-insert_exomol_file(db, '/home/toma/Desktop/12C-16O__H2.broad', \
-                   "INSERT INTO broad_params (J, gamma_H2, n_H2, gamma_He, n_He, \
-                                          particle_id, broad_id) VALUES({}, {}, {}, null, null, 1, null)", [3, 1, 2])
-
-#insert broad He file
-insert_exomol_file(db, '/home/toma/Desktop/12C-16O__He.broad', \
-                   "UPDATE broad_params SET gamma_He = {}, n_He = {} WHERE J = {}", [1, 2, 3])
-
-
-#####
-#open trans file and fetch the data in table 4 and 5 according to state_id's in trans file
-trans = open('/home/toma/Desktop/12C-16O__Li2015.trans')
-counter = 0
-
 #create a cursor object
 cursor = db.cursor()
 
-bulk_data = []
 
-for line in trans:
-    data = line.split()
+#disable autocommit to improve performance
+sql_order('SET autocommit = 0')
+
+#get parameters needed to insert exomol data into transitions
+
+#states in id order starts in 1 
+Es, gs, Js = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015.states', usecols=(1, 2, 3), unpack=True)
+
+#J starts with 0
+gamma_H2s, n_H2s = np.loadtxt('/home/toma/Desktop/12C-16O__H2.broad', usecols=(1, 2), unpack=True)
+
+#J starts with 0
+gamma_Hes, n_Hes = np.loadtxt('/home/toma/Desktop/12C-16O__He.broad', usecols=(1, 2), unpack=True)
+
+#transition file
+upper_ids, lower_ids, As = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015.trans', usecols=(0, 1, 2), unpack=True)
+
+exomol_data = []
+query_insert_exomol = "INSERT INTO transitions (nu, A, gamma_air, n_air, delta_air, elower, gp, \
+gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source, particle_id, line_id) \
+VALUES(%s, %s, null, null, null, %s, %s, %s, %s, null, %s, %s, null, %s, %s, null)"
+
+counter = 0
+for i in range(len(upper_ids)):
+    upper_id = int(upper_ids[i])
+    lower_id = int(lower_ids[i])
+    A = As[i]
+    
+    E_upper = Es[upper_id - 1]
+    
+    E_lower = Es[lower_id - 1]
+    gp = gs[lower_id - 1]
+    J_lower = int(Js[lower_id - 1])
+    
+    if J_lower < min(len(n_H2s), len(n_Hes)):
+        gamma_H2 = gamma_H2s[J_lower]
+        n_H2 = n_H2s[J_lower]
+        gamma_He = gamma_Hes[J_lower]
+        n_He = n_Hes[J_lower]
         
-    A = data[2]
-    #get E_higher using higher_state_id
-    upper = "SELECT E FROM states WHERE state_id = {}".format(data[0])
-    cursor.execute(upper)
-    E_higher, = cursor.fetchone()
-        
-    #get E_lower, gp, J using higher_state_id
-    lower = "SELECT E, g, J FROM states WHERE state_id = {}".format(data[1])
-    cursor.execute(lower)
-    E_lower, gp, J = cursor.fetchone()
-        
-    v_ij = E_higher - E_lower
-        #get other info needed from table broad_params using J
-    get_param = "SELECT gamma_H2, n_H2, gamma_He, n_He, particle_id FROM broad_params WHERE J = {}".format(J)
-    cursor.execute(get_param)
+    else:
+        if len(n_H2s) >= len(n_Hes):
+            if J_lower >= len(n_Hes) and J_lower < len(n_H2s):
+                gamma_H2 = gamma_H2s[J_lower]
+                n_H2 = n_H2s[J_lower]
+                gamma_He = DEFAULT_GAMMA
+                n_He = DEFAULT_N
+            else: 
+                gamma_H2 = DEFAULT_GAMMA
+                n_H2 = DEFAULT_N
+                gamma_He = DEFAULT_GAMMA
+                n_He = DEFAULT_N
+        elif len(n_H2s) < len(n_Hes):
+            if J_lower >= len(n_H2s) and J_lower < len(n_Hes):
+                gamma_H2 = DEFAULT_GAMMA
+                n_H2 = DEFAULT_N
+                gamma_He = gamma_Hes[J_lower]
+                n_He = n_Hes[J_lower]
+            else: 
+                gamma_H2 = DEFAULT_GAMMA
+                n_H2 = DEFAULT_N
+                gamma_He = DEFAULT_GAMMA
+                n_He = DEFAULT_N
+            
+    if gamma_H2 is None: 
+        gamma_H2 = DEFAULT_GAMMA
+    if gamma_He is None: 
+        gamma_He = DEFAULT_GAMMA
+    if n_H2 is None: 
+        n_H2 = DEFAULT_N
+    if n_He is None: 
+        n_He = DEFAULT_N
     
+    v_ij = E_upper - E_lower
     
-    ########need modify later
-    param_tuple = cursor.fetchone()
-    if param_tuple is None: 
-        param = (DEFAULT_GAMMA, DEFAULT_N, DEFAULT_GAMMA, DEFAULT_N, 1)
-    else: 
-        param = list(param_tuple)
-         
-        #####
-        #need to get this default value from web for each isotope later
-        if param[1] is None: 
-            param[1] = DEFAULT_GAMMA
-        if param[3] is None: 
-            param[3] = DEFAULT_GAMMA
-        if param[2] is None: 
-            param[2] = DEFAULT_N
-        if param[4] is None: 
-            param[4] = DEFAULT_N
-    
-        #(gamma_H2, n_H2, gamma_He, n_He, particle_id)
-        #(   0,      1,      2,      3,       4      )
-    
-     
-    #put all the exomol data into table lines
-    query = ("INSERT INTO transitions (nu, A, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, \
-                                         delta_H2, gamma_He, n_He, delta_He, line_source, particle_id, \
-                                         line_id) VALUES('%s', '%s', null, null, null, '%s', '%s', '%s', '%s', 0, '%s', '%s', 0, '%s', '%s', null)" \
-                                        % (v_ij, A, E_lower, gp, param[0], param[1], param[2], param[3], 'EXOMOL Li2015', param[4])) 
-    
-    cursor.execute(query)
-   
+    exomol_data.append((v_ij, A, E_lower, gp, gamma_H2, n_H2, gamma_He, n_He, 'EXOMOL Li2015', 1))
     
     counter += 1
-    print("Processing line", counter, param)
+    #print("Processing line {} for exomol data".format(counter))
 
+print("Bulk inserting exomol data...")
 
-#commit changes
+bulk_time = time.time()
+
+#test speed for mega data
+'''
+for i in range(13):
+    exomol_data += exomol_data
+    print(len(exomol_data))
+'''
+
+sql_bulk_order(query_insert_exomol, exomol_data)
 db.commit()
-trans.close()
-     
+
+print("Bulk inserted exomol data in %s seconds" % (time.time() - bulk_time))
+
+##################
+
+#insert partition file
+Ts, partition_functions = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015_partition.pf', usecols=(0, 1), unpack=True)
+
+partition_data = [] 
+query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, particle_id, partition_id) VALUES(%s, %s, 1, null)"
+
+counter = 0
+for j in range(len(partition_functions)):
+    T = Ts[j]
+    partition = partition_functions[j]
+    
+    partition_data.append((T, partition))
+    
+    counter += 1
+    #print("Processing line {} for partition data".format(counter))
+
+print("Bulk inserting partition data...")
+sql_bulk_order(query_insert_partitions, partition_data)    
+db.commit()
+
+################
+
 cursor.close()
 db.close()
 

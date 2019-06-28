@@ -24,8 +24,20 @@ import numpy as np
 import time
 from astropy.modeling.models import Voigt1D
 
+######################
 
-AMU_TO_G = 1.66053904e-24
+#store the value of speed of light in cm/s
+c = 2.99792458e10
+#planck constant erg*s
+h = 6.62606885e-27
+#boltzmann constant
+k_B = 1.38064852e-16
+#reference Temperature in K
+T_ref = 296 
+#store the value of c_2 = h * c / k_B
+c_2 = h * c / k_B
+#store the conversion from gram to amu
+G_TO_AMU = 1.66053904e-24
 
 ########################
 
@@ -83,17 +95,6 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     n_He = line[11]
     delta_He = line[12]
     
-    #store the value of speed of light in cm/s
-    c = 2.99792458e10
-    #planck constant erg*s
-    h = 6.62606885e-27
-    #boltzmann constant
-    k_B = 1.38064852e-16
-    #reference Temperature in K
-    T_ref = 296 
-    #store the value of c_2 = h * c / k_B
-    c_2 = h * c / k_B
-    
     #compute line intensity function S_ij(T)
     S_ij = (iso_abundance * a * gp * math.exp(-c_2 * elower / T) * (1 - math.exp(-c_2 * v_ij / T))) / (8 * math.pi * c * math.pow(v_ij, 2) * Q)
     
@@ -142,7 +143,7 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     
     
     #what is f_0
-    droppler_broad = math.sqrt((8 * k_B * T * math.log(2)) / (iso_mass * AMU_TO_G * c**2)) * v_ij_star
+    droppler_broad = math.sqrt((8 * k_B * T * math.log(2)) / (iso_mass * G_TO_AMU * c**2)) * v_ij_star
     
     absorption_function = Voigt1D(x_0=v_ij_star, amplitude_L=S_ij, fwhm_L=gamma_p_T, fwhm_G=0.00000001)
     
@@ -223,7 +224,7 @@ def main():
     print('absorption_cross_section is', absorption_cross_section)
     np.save('/home/toma/Desktop/absorption.npy', absorption_cross_section)
     
-    print("--- %s seconds ---" % (time.time() - start_time))
+    print("Finished in %s seconds" % (time.time() - start_time))
     
     '''
     #use this for if for default line source
