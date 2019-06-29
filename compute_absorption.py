@@ -98,7 +98,6 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     #compute line intensity function S_ij(T)
     S_ij = (iso_abundance * a * gp * math.exp(-c_2 * elower / T) * (1 - math.exp(-c_2 * v_ij / T))) / (8 * math.pi * c * math.pow(v_ij, 2) * Q)
     
-    
     #compute gamma(p,T) for f
     #T_red = 296 K
     #gamma_p_T = p * ((T_ref / T)^n_H2 * gamma_H2 * f_H2 + (T_ref / T)^n_He * gamma_He * f_He)
@@ -145,9 +144,9 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     #what is f_0
     droppler_broad = math.sqrt((8 * k_B * T * math.log(2)) / (iso_mass * G_TO_AMU * c**2)) * v_ij_star
     
-    absorption_function = Voigt1D(x_0=v_ij_star, amplitude_L=S_ij, fwhm_L=gamma_p_T, fwhm_G=0.00000001)
+    absorption_function = Voigt1D(x_0=v_ij_star, amplitude_L= 1 / (gamma_p_T * math.pi), fwhm_L=2 * gamma_p_T, fwhm_G=droppler_broad)
     
-    absorption = absorption_function(v)
+    absorption = S_ij * absorption_function(v)
     
     '''
     #compute absorption cross section
