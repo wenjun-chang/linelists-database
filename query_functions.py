@@ -48,7 +48,7 @@ def sql_bulk_order(query, data):
         cursor.executemany(query, data)
         #commit changes
         db.commit()
-        print("insert in %s seconds" % (time.time() - t))
+        print("Bulk inserted in %s seconds" % (time.time() - t))
     except Exception as e: 
         #if errors occur
         db.rollback()

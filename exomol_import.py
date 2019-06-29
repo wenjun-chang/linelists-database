@@ -6,7 +6,6 @@ Created on Fri Jun 21 16:02:30 2019
 @author: toma
 """
 
-
 #this code helps import exomol data
 
 import MySQLdb
@@ -27,12 +26,10 @@ db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='line
 #create a cursor object
 cursor = db.cursor()
 
-
-'''LOAD DATA LOCAL INFILE '/home/toma/Desktop/hitran.txt' INTO TABLE transitions FIELDS TERMINATED BY '\b' LINES TERMINATED BY '\r\n';'''
-'''LOAD DATA LOCAL INFILE '/home/toma/Desktop/exomol.txt' INTO TABLE transitions FIELDS TERMINATED BY '\b' LINES TERMINATED BY '\r\n';'''
-
 #disable autocommit to improve performance
 sql_order('SET autocommit = 0')
+sql_order('SET unique_checks = 0')
+sql_order('SET foreign_key_checks = 0')
 
 #get parameters needed to insert exomol data into transitions
 
@@ -55,9 +52,12 @@ VALUES(%s, %s, null, null, null, %s, %s, %s, %s, null, %s, %s, null, %s, %s, nul
 
 counter = 0
 
-#
+#file that the parameters are written into and import to mysql using LOAD DATA INFILE
 f = open('/home/toma/Desktop/exomol.txt', 'w') 
 
+file_time = time.time()
+
+#need optimize
 for i in range(len(upper_ids)):
     upper_id = int(upper_ids[i])
     lower_id = int(lower_ids[i])
@@ -109,40 +109,38 @@ for i in range(len(upper_ids)):
     
     v_ij = E_upper - E_lower
     
-    #
-    data = [v_ij, A, 'null', 'null', 'null', E_lower, gp, gamma_H2, n_H2, 'null', gamma_He, n_He, 'null', 'EXOMOL_Li2015', 1, 'null']
+    data = [v_ij, A, E_lower, gp, gamma_H2, n_H2, gamma_He, n_He]
+    
+    #test speed for mega data
+    #for i in range(30):
+        
     for item in data: 
         f.write("%s " % item)
     f.write("\n")
     
-    
-    '''
-    exomol_data.append((v_ij, A, E_lower, gp, gamma_H2, n_H2, gamma_He, n_He, 'EXOMOL_Li2015', 1))
-    
-    
-    
     counter += 1
-    #print("Processing line {} for exomol data".format(counter))
+
+f.close()
+
+print("Write infile in %s seconds" % (time.time() - file_time))
+
+load_time = time.time()
 
 print("Bulk inserting exomol data...")
 
-bulk_time = time.time()
+cursor.execute("LOAD DATA LOCAL INFILE '/home/toma/Desktop/exomol.txt' INTO TABLE transitions FIELDS TERMINATED BY ' ' LINES TERMINATED BY '\n' \
+          (@col1, @col2, @col3, @col4, @col5, @col6, @col7, @col8) SET nu=@col1, A=@col2, elower=@col3, gp=@col4, \
+          gamma_H2=@col5, n_H2=@col6, gamma_He=@col7, n_He=@col8, line_source='EXOMOL_Li2015', particle_id=1;")
 
-#test speed for mega data
-
-for i in range(13):
-    exomol_data += exomol_data
-    print(len(exomol_data))
-
-
-sql_bulk_order(query_insert_exomol, exomol_data)
 db.commit()
 
-print("Bulk inserted exomol data in %s seconds" % (time.time() - bulk_time))
+print('Executed {} lines of exomol data'.format(counter))
+print("Bulk inserted exomol data in %s seconds" % (time.time() - load_time))
 
 ##################
 
 #insert partition file
+
 Ts, partition_functions = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015_partition.pf', usecols=(0, 1), unpack=True)
 
 partition_data = [] 
@@ -156,17 +154,20 @@ for j in range(len(partition_functions)):
     partition_data.append((T, partition))
     
     counter += 1
-    #print("Processing line {} for partition data".format(counter))
 
 print("Bulk inserting partition data...")
+print("Executed {} lines of partition data".format(counter))
+
 sql_bulk_order(query_insert_partitions, partition_data)    
 db.commit()
 
 ################
 
+#turn them back on
+sql_order('SET unique_checks = 1')
+sql_order('SET foreign_key_checks = 1')
+
 cursor.close()
 db.close()
 
 print("Finished in %s seconds" % (time.time() - start_time))
-
-'''
