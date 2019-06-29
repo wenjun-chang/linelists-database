@@ -36,11 +36,13 @@ VARCHAR(25) NOT NULL, particle_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY K
 transitions_table_create_query = "CREATE TABLE IF NOT EXISTS transitions (nu DOUBLE NOT NULL, A DOUBLE NOT NULL, \
 gamma_air DOUBLE, n_air DOUBLE, delta_air DOUBLE, elower DOUBLE NOT NULL, gp SMALLINT NOT NULL, gamma_H2 DOUBLE, \
 n_H2 DOUBLE, delta_H2 DOUBLE, gamma_He DOUBLE, n_He DOUBLE, delta_He DOUBLE, line_source VARCHAR(25) NOT NULL, \
-particle_id INT NOT NULL, line_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY) ROW_FORMAT=COMPRESSED;"
+particle_id INT UNSIGNED NOT NULL, line_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY transitions(particle_id) \
+REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE) ROW_FORMAT=COMPRESSED;"
 
 #create table for the partition coefficient across all temperatures for each particle in table 1
 partitions_table_create_query = "CREATE TABLE IF NOT EXISTS partitions (temperature FLOAT NOT NULL, `partition` FLOAT NOT NULL, \
-particle_id INT UNSIGNED NOT NULL, partition_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY);" 
+particle_id INT UNSIGNED NOT NULL, partition_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY partitions(particle_id) \
+REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE);" 
 
 #create table states needed to store the states file of exomol data for each molecule
 #state_id is the exomol state_id, and id is the mysql primary key. 
@@ -56,10 +58,10 @@ particle_id INT UNSIGNED NOT NULL, broad_id INT UNSIGNED NOT NULL AUTO_INCREMENT
 ##################
 
 #create indexes on nu, A, elower, and line_source in table transitions
+create_index_line_source = "CREATE INDEX line_source_index ON transitions(line_source) USING BTREE;"
 create_index_nu = "CREATE INDEX nu_index ON transitions(nu) USING BTREE;"
 create_index_A = "CREATE INDEX A_index ON transitions(A) USING BTREE;"
 create_index_elower = "CREATE INDEX elower_index ON transitions(elower) USING BTREE;"
-create_index_line_source = "CREATE INDEX line_source_index ON transitions(line_source) USING BTREE;"
 
 ##################
         
@@ -77,11 +79,15 @@ def main():
     sql_order(states_table_create_query)
     sql_order(broad_params_table_create_query)
     
+    
+    '''
     #create the indexes in table transitions
+    #index significance: line_source > nu > A > elower
+    sql_order(create_index_line_source)
     sql_order(create_index_nu)
     sql_order(create_index_A)
     sql_order(create_index_elower)
-    sql_order(create_index_line_source)
+    '''
    
     print("Finished in %s seconds" % (time.time() - start_time))
         
