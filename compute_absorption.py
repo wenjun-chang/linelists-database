@@ -122,13 +122,13 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
 
     #compute v_ij_star for f 
     #v_ij_star = v_ij + delta_net * p, where delta_net is computed in similar fashion to gamma_p_T
-    if delta_H2 != None and delta_He != None: #if both delta exists
+    if delta_H2 is not None and delta_He is not None: #if both delta exists
         v_ij_star = v_ij + p * (delta_H2 * 0.85 + delta_He * 0.15)
         
-    elif delta_H2 == None and delta_He != None: #when delta_H2 does not exist, f_He = 1.0
+    elif delta_H2 is None and delta_He is not None: #when delta_H2 does not exist, f_He = 1.0
         v_ij_star = v_ij + p * delta_He
     
-    elif delta_He == None and delta_H2 != None: #when delta_He does not exist, f_H2 = 1.0
+    elif delta_He is None and delta_H2 is not None: #when delta_He does not exist, f_H2 = 1.0
         v_ij_star = v_ij + p * delta_H2
         
     else: #when both delta_H2 and delta_He does not exist, use delta_air
@@ -136,13 +136,13 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
         
         
     #compute normalized line shape function f(v, v_ij, T, p)
-    #############???????!!!!!!!!!!!!!!!!!!
+    #############old 
     '''f = gamma_p_T / (math.pi * (math.pow(gamma_p_T, 2) + (v - v_ij_star)**2))'''
     
     
     
     #what is f_0
-    droppler_broad = math.sqrt((8 * k_B * T * math.log(2)) / (iso_mass * G_TO_AMU * c**2)) * v_ij_star
+    droppler_broad = math.sqrt((8 * k_B * T * math.log(2)) / (iso_mass * G_TO_AMU * c**2)) * v_ij
     
     absorption_function = Voigt1D(x_0=v_ij_star, amplitude_L= 1 / (gamma_p_T * math.pi), fwhm_L=2 * gamma_p_T, fwhm_G=droppler_broad)
     
@@ -165,7 +165,6 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
     
     #get particle_id and iso_abundance using the correct function
     particle_data = get_particle(iso_name)
-    print(particle_data)
     particle_id = particle_data[0]
     iso_abundance = particle_data[1]
     iso_mass = particle_data[2]
@@ -177,10 +176,21 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
     #create a cursor object
     cursor = db.cursor()
     
-    #query for all the lines of the specified isotopologue from the user given nu, line_source
-    query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, gp, gamma_H2, \
-    n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
-    line_source = '{}'".format(particle_id, line_source)
+    
+    #####################add when default
+    
+    if default == True: 
+        #use this query for getting the lines of default line source
+        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, \
+        delta_He FROM transitions INNER JOIN particles ON particles.default_line_source = transitions.line_source \
+        WHERE particles.particle_id = {};".format(particle_id)
+    
+    else:
+        #query for all the lines of the specified isotopologue from the user given nu, line_source
+        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, gp, gamma_H2, \
+        n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
+        line_source = '{}'".format(particle_id, line_source)
+    
     print(query)
     
     #this gives us a table of all the parameters we desire in a table in mysql
@@ -191,13 +201,15 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
     #the table could be gigantic, therefore fetchall() could be slow, therefore
     #would rather fetch one single line as a tuple ( , , , ) each time and
     #compute the absorption for that line, store it in variable and sum it over iterations. 
-    absorption_cross_section = 0.0
+    absorption_cross_section = [0.0] * len(v)
     for i in range(rows):
         #fetch one line
         line = cursor.fetchone()
         #use the line and given input to compute absorption and put it into a list
-        absorption = compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass)
-        absorption_cross_section += absorption
+        for j in range(len(v)):
+            if line[0] >= v[j] - 25 and line[0] <= v[j] + 25:             
+                absorption = compute_one_absorption(line, v[j], T, p, Q, iso_abundance, iso_mass)
+                absorption_cross_section[j] += absorption
     
     #close up cursor and connection
     cursor.close()
@@ -212,7 +224,7 @@ def main():
     #1,2,3,4,5
     #1,10,100,1000,10000
     #1,2,4,8,16
-    
+
     start_time = time.time()
     
     wavelengths = np.logspace(np.log10(0.3e-4), np.log10(30e-4), 4616)
@@ -220,38 +232,52 @@ def main():
     #wavelengths = np.exp(np.linspace(np.log(0.3e-4), np.log(30e-4), 4616))
     
     absorption_cross_section = compute_all(wavenums, 2000, 0.1, '(12C)(16O)', 'HITRAN_2016')
-    print('absorption_cross_section is', absorption_cross_section)
+    #print('absorption_cross_section is', absorption_cross_section)
     np.save('/home/toma/Desktop/absorption.npy', absorption_cross_section)
     
     print("Finished in %s seconds" % (time.time() - start_time))
     
     '''
-    #use this for if for default line source
-    "SELECT nu, A, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, \
-    delta_He FROM transitions INNER JOIN particles ON particles.default_line_source = transitions.line_source \
-    WHERE particles.particle_id = {};".format(particle_id)'''
-    
-    
-    '''
     print('Hello! Welcome to Toma\'s linelist database, sir.')
-    toma = input('Do you want to obtain absorption cross section data today, Sir? \n Enter: Y or n')
-    while toma.lower == 'y':
-        isotopologue = input('What isotopologue of a molecule are you looking for? Format example: CO2 = (12C)(16O)2')
-        source = input('What type of data do Sir wish to compute from? \n Enter: HITRAN or EXOMOL')
-        version = input('What version of {} do Sir desire?\nEnter default to compute using \
-        the default line source best for this isotopologue'.format(line_source))
-        
-        ####a list of version for that data
-        
-        
-        line_source = source + '_' + version
-        v = input('At what wavenumber (cm^-1) Sir?')
-        T = input('At what temperature (K) Sir?')
-        p = input('At what pressure (atm) Sir?')
-        
-        output = compute_all(v, T, p, isotopologue, line_source)
-        print('The absorption cross section for {} in {}, {} at {}, {}, {} is {}'.format(isotopologue, line_source, v, T, p, output))
-        toma = input('Do you want to obtain another absorption cross section data, Sir? \n Enter: Y or n')
+    toma = input('Do you want to obtain absorption cross section data today, Sir? \nEnter: Y or n \n')
+    while True: 
+        if toma.lower() == 'y':
+            isotopologue = input('What isotopologue of a molecule are you looking for? Format example: CO2 = (12C)(16O)2 \n')
+            source = input('What type of data do Sir wish to compute from? \nEnter: HITRAN or EXOMOL or DEFAULT--the optimal'
+                           'version for the molecule you chooose, Sir \n')
+            if source.lower() != 'default': 
+                hitran_versions = '2016, 2012, 2008'
+                exomol_versions = 'Li2015, SAITY'
+                if source.lower() == 'hitran':
+                    version = input('What version of {} do Sir desire? \nVersions available include {}'
+                                    ' (case sensitive) \n'.format(source.upper(), hitran_versions))
+                if source.lower() == 'exomol':
+                    version = input('What version of {} do Sir desire? \nVersions available include {}'
+                                    ' (case sensitive) \n'.format(source.upper(), exomol_versions))
+                    
+                line_source = source.upper() + '_' + version
+            else: #for default
+                line_source = source.lower()
+                
+            wavenums = input('At what wavenumber(s) (cm^-1) Sir? \n')
+            temp = wavenums.split(',')
+            v = []
+            for i in temp:
+                v.append(float(i))
+            T = float(input('At what temperature (K) Sir? \n'))
+            p = float(input('At what pressure (atm) Sir? \n'))
+            
+            if line_source == 'default':
+                output = compute_all(v, T, p, isotopologue, line_source, True)
+            else: 
+                output = compute_all(v, T, p, isotopologue, line_source)
+            print('The absorption cross section for {} in {} at {}, {}, {} is {} \n'.format(isotopologue, line_source, v, T, p, output))
+            toma = input('Do you want to obtain another absorption cross section data, Sir? \nEnter: Y or n \n')
+        elif toma.lower() == 'n':
+            print('Farewell, Sir. May the flame guide you~ \n')
+            break
+        else: 
+            toma = input('Please enter Y or n \n')
     quit()
     '''
 

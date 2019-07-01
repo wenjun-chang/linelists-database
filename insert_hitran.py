@@ -107,6 +107,7 @@ def main():
     insert_hitran('/home/toma/Desktop/co_test.out')
     
     #turn it back on
+    
     sql_order('SET unique_checks = 1')
     sql_order('SET foreign_key_checks = 1')
     

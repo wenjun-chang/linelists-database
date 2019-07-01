@@ -20,7 +20,6 @@ plt.yscale('log')
 plt.title("computed at 2000K, 0.1 atm for '(12C)(16O)' using HITRAN 2016 lines at the range 300 um to 3000 um using logspace display", fontsize='x-large')
 plt.xlabel('wavelength (um)', fontsize='x-large')
 plt.ylabel('absorption cross section (cm^2)', fontsize='x-large')
-plt.get_xaxis().get_major_formatter().set_useOffset(False)
 plt.grid(True)
 
 plt.show()

@@ -12,6 +12,8 @@ import MySQLdb
 import numpy as np
 from query_functions import sql_bulk_order, sql_order
 import time
+import itertools
+import os
 
 DEFAULT_GAMMA = 0.0700
 DEFAULT_N = 0.500
@@ -27,6 +29,7 @@ db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='line
 cursor = db.cursor()
 
 #disable autocommit to improve performance
+
 sql_order('SET autocommit = 0')
 sql_order('SET unique_checks = 0')
 sql_order('SET foreign_key_checks = 0')
@@ -43,84 +46,217 @@ gamma_H2s, n_H2s = np.loadtxt('/home/toma/Desktop/12C-16O__H2.broad', usecols=(1
 gamma_Hes, n_Hes = np.loadtxt('/home/toma/Desktop/12C-16O__He.broad', usecols=(1, 2), unpack=True)
 
 #transition file
-upper_ids, lower_ids, As = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015.trans', usecols=(0, 1, 2), unpack=True)
-
-exomol_data = []
-query_insert_exomol = "INSERT INTO transitions (nu, A, gamma_air, n_air, delta_air, elower, gp, \
-gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source, particle_id, line_id) \
-VALUES(%s, %s, null, null, null, %s, %s, %s, %s, null, %s, %s, null, %s, %s, null)"
-
-counter = 0
-
-#file that the parameters are written into and import to mysql using LOAD DATA INFILE
-f = open('/home/toma/Desktop/exomol.txt', 'w') 
-
-file_time = time.time()
-
-#need optimize
-for i in range(len(upper_ids)):
-    upper_id = int(upper_ids[i])
-    lower_id = int(lower_ids[i])
-    A = As[i]
-    
-    E_upper = Es[upper_id - 1]
-    E_lower = Es[lower_id - 1]
-    gp = gs[lower_id - 1]
-    J_lower = int(Js[lower_id - 1])
-    
-    if J_lower < min(len(n_H2s), len(n_Hes)):
-        gamma_H2 = gamma_H2s[J_lower]
-        n_H2 = n_H2s[J_lower]
-        gamma_He = gamma_Hes[J_lower]
-        n_He = n_Hes[J_lower]
+#max_rows =.....
+#numpy.fromiter
+length_trans = sum(1 for line in open('/home/toma/Desktop/12C-16O__Li2015.trans'))
+print(length_trans)
+with open('/home/toma/Desktop/12C-16O__Li2015.trans') as trans:
+    lines_to_read = 0
+    while length_trans >= lines_to_read + 1e6:
         
-    else:
-        if len(n_H2s) >= len(n_Hes):
-            if J_lower >= len(n_Hes) and J_lower < len(n_H2s):
+        upper_ids, lower_ids, As = np.loadtxt(itertools.islice(trans, lines_to_read, 1e6), usecols=(0, 1, 2), unpack=True)
+        
+        exomol_data = []
+        query_insert_exomol = "INSERT INTO transitions (nu, A, gamma_air, n_air, delta_air, elower, gp, \
+        gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source, particle_id, line_id) \
+        VALUES(%s, %s, null, null, null, %s, %s, %s, %s, null, %s, %s, null, %s, %s, null)"
+        
+        counter = 0
+        
+        #file that the parameters are written into and import to mysql using LOAD DATA INFILE
+        f = open('/home/toma/Desktop/exomol.txt', 'w') 
+        
+        file_time = time.time()
+        
+        #need optimizeoptimize
+        for i in range(len(upper_ids)):
+            upper_id = int(upper_ids[i])
+            lower_id = int(lower_ids[i])
+            A = As[i]
+            
+            E_upper = Es[upper_id - 1]
+            E_lower = Es[lower_id - 1]
+            gp = gs[lower_id - 1]
+            J_lower = int(Js[lower_id - 1])
+            
+            #store length into variable to run faster
+            len_H2 = len(n_H2s)
+            len_He = len(n_Hes)
+        
+            if J_lower < min(len_H2, len_He):
                 gamma_H2 = gamma_H2s[J_lower]
                 n_H2 = n_H2s[J_lower]
-                gamma_He = DEFAULT_GAMMA
-                n_He = DEFAULT_N
-            else: 
-                gamma_H2 = DEFAULT_GAMMA
-                n_H2 = DEFAULT_N
-                gamma_He = DEFAULT_GAMMA
-                n_He = DEFAULT_N
-        elif len(n_H2s) < len(n_Hes):
-            if J_lower >= len(n_H2s) and J_lower < len(n_Hes):
-                gamma_H2 = DEFAULT_GAMMA
-                n_H2 = DEFAULT_N
                 gamma_He = gamma_Hes[J_lower]
                 n_He = n_Hes[J_lower]
+            
+            elif len_H2 >= len_He and (J_lower >= len_He and J_lower < len_H2):
+                    gamma_H2 = gamma_H2s[J_lower]
+                    n_H2 = n_H2s[J_lower]
+                    gamma_He = DEFAULT_GAMMA
+                    n_He = DEFAULT_N
+                    
+            elif len_H2 < len_He and (J_lower >= len_H2 and J_lower < len_He):
+                    gamma_H2 = DEFAULT_GAMMA
+                    n_H2 = DEFAULT_N
+                    gamma_He = gamma_Hes[J_lower]
+                    n_He = n_Hes[J_lower]
             else: 
                 gamma_H2 = DEFAULT_GAMMA
                 n_H2 = DEFAULT_N
                 gamma_He = DEFAULT_GAMMA
                 n_He = DEFAULT_N
             
-    if gamma_H2 is None: 
-        gamma_H2 = DEFAULT_GAMMA
-    if gamma_He is None: 
-        gamma_He = DEFAULT_GAMMA
-    if n_H2 is None: 
-        n_H2 = DEFAULT_N
-    if n_He is None: 
-        n_He = DEFAULT_N
-    
-    v_ij = E_upper - E_lower
-    
-    data = [v_ij, A, E_lower, gp, gamma_H2, n_H2, gamma_He, n_He]
-    
-    #test speed for mega data
-    #for i in range(30):
+            '''
+            else:
+                if len_H2 >= len_He:
+                    if J_lower >= len_He and J_lower < len_H2:
+                        gamma_H2 = gamma_H2s[J_lower]
+                        n_H2 = n_H2s[J_lower]
+                        gamma_He = DEFAULT_GAMMA
+                        n_He = DEFAULT_N
+                    else: 
+                        gamma_H2 = DEFAULT_GAMMA
+                        n_H2 = DEFAULT_N
+                        gamma_He = DEFAULT_GAMMA
+                        n_He = DEFAULT_N
+                elif len_H2 < len_He:
+                    if J_lower >= len_H2 and J_lower < len_H2:
+                        gamma_H2 = DEFAULT_GAMMA
+                        n_H2 = DEFAULT_N
+                        gamma_He = gamma_Hes[J_lower]
+                        n_He = n_Hes[J_lower]
+                    else: 
+                        gamma_H2 = DEFAULT_GAMMA
+                        n_H2 = DEFAULT_N
+                        gamma_He = DEFAULT_GAMMA
+                        n_He = DEFAULT_N
+            '''
+            
+            if gamma_H2 is None: 
+                gamma_H2 = DEFAULT_GAMMA
+            if gamma_He is None: 
+                gamma_He = DEFAULT_GAMMA
+            if n_H2 is None: 
+                n_H2 = DEFAULT_N
+            if n_He is None: 
+                n_He = DEFAULT_N
+            
+            v_ij = E_upper - E_lower
+            
+            data = [v_ij, A, E_lower, gp, gamma_H2, n_H2, gamma_He, n_He]
+            
+            #test speed for mega data
+            #for i in range(30):
+                
+            for item in data: 
+                f.write("%s " % item)
+            f.write("\n")
+            
+            counter += 1
         
-    for item in data: 
-        f.write("%s " % item)
-    f.write("\n")
+        lines_to_read += 1e6
     
-    counter += 1
-
-f.close()
+    upper_ids, lower_ids, As = np.loadtxt(itertools.islice(trans, lines_to_read, length_trans), usecols=(0, 1, 2), unpack=True)
+    
+    exomol_data = []
+    query_insert_exomol = "INSERT INTO transitions (nu, A, gamma_air, n_air, delta_air, elower, gp, \
+    gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source, particle_id, line_id) \
+    VALUES(%s, %s, null, null, null, %s, %s, %s, %s, null, %s, %s, null, %s, %s, null)"
+    
+    counter = 0
+    
+    #file that the parameters are written into and import to mysql using LOAD DATA INFILE
+    f = open('/home/toma/Desktop/exomol.txt', 'w') 
+    
+    file_time = time.time()
+    
+    #need optimizeoptimize
+    for i in range(len(upper_ids)):
+        upper_id = int(upper_ids[i])
+        lower_id = int(lower_ids[i])
+        A = As[i]
+        
+        E_upper = Es[upper_id - 1]
+        E_lower = Es[lower_id - 1]
+        gp = gs[lower_id - 1]
+        J_lower = int(Js[lower_id - 1])
+        
+        #store length into variable to run faster
+        len_H2 = len(n_H2s)
+        len_He = len(n_Hes)
+    
+        if J_lower < min(len_H2, len_He):
+            gamma_H2 = gamma_H2s[J_lower]
+            n_H2 = n_H2s[J_lower]
+            gamma_He = gamma_Hes[J_lower]
+            n_He = n_Hes[J_lower]
+        
+        elif len_H2 >= len_He and (J_lower >= len_He and J_lower < len_H2):
+                gamma_H2 = gamma_H2s[J_lower]
+                n_H2 = n_H2s[J_lower]
+                gamma_He = DEFAULT_GAMMA
+                n_He = DEFAULT_N
+                
+        elif len_H2 < len_He and (J_lower >= len_H2 and J_lower < len_He):
+                gamma_H2 = DEFAULT_GAMMA
+                n_H2 = DEFAULT_N
+                gamma_He = gamma_Hes[J_lower]
+                n_He = n_Hes[J_lower]
+        else: 
+            gamma_H2 = DEFAULT_GAMMA
+            n_H2 = DEFAULT_N
+            gamma_He = DEFAULT_GAMMA
+            n_He = DEFAULT_N
+        
+        '''
+        else:
+            if len_H2 >= len_He:
+                if J_lower >= len_He and J_lower < len_H2:
+                    gamma_H2 = gamma_H2s[J_lower]
+                    n_H2 = n_H2s[J_lower]
+                    gamma_He = DEFAULT_GAMMA
+                    n_He = DEFAULT_N
+                else: 
+                    gamma_H2 = DEFAULT_GAMMA
+                    n_H2 = DEFAULT_N
+                    gamma_He = DEFAULT_GAMMA
+                    n_He = DEFAULT_N
+            elif len_H2 < len_He:
+                if J_lower >= len_H2 and J_lower < len_H2:
+                    gamma_H2 = DEFAULT_GAMMA
+                    n_H2 = DEFAULT_N
+                    gamma_He = gamma_Hes[J_lower]
+                    n_He = n_Hes[J_lower]
+                else: 
+                    gamma_H2 = DEFAULT_GAMMA
+                    n_H2 = DEFAULT_N
+                    gamma_He = DEFAULT_GAMMA
+                    n_He = DEFAULT_N
+        '''
+        
+        if gamma_H2 is None: 
+            gamma_H2 = DEFAULT_GAMMA
+        if gamma_He is None: 
+            gamma_He = DEFAULT_GAMMA
+        if n_H2 is None: 
+            n_H2 = DEFAULT_N
+        if n_He is None: 
+            n_He = DEFAULT_N
+        
+        v_ij = E_upper - E_lower
+        
+        data = [v_ij, A, E_lower, gp, gamma_H2, n_H2, gamma_He, n_He]
+        
+        #test speed for mega data
+        #for i in range(30):
+            
+        for item in data: 
+            f.write("%s " % item)
+        f.write("\n")
+        
+        counter += 1    
+    
+    f.close()
 
 print("Write infile in %s seconds" % (time.time() - file_time))
 
@@ -164,6 +300,7 @@ db.commit()
 ################
 
 #turn them back on
+
 sql_order('SET unique_checks = 1')
 sql_order('SET foreign_key_checks = 1')
 
