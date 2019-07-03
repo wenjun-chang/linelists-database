@@ -23,7 +23,7 @@ from query_functions import fetch
 import numpy as np
 import time
 from astropy.modeling.models import Voigt1D
-
+import numexpr as ne
 ######################
 
 #store the value of speed of light in cm/s
@@ -201,7 +201,7 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
     #the table could be gigantic, therefore fetchall() could be slow, therefore
     #would rather fetch one single line as a tuple ( , , , ) each time and
     #compute the absorption for that line, store it in variable and sum it over iterations. 
-    absorption_cross_section = [0.0] * len(v)
+    absorption_cross_section = np.zeros(len(v))
     for i in range(rows):
         #fetch one line
         line = cursor.fetchone()
