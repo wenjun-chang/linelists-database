@@ -26,6 +26,11 @@ def insert_hitran(filename):
     #create a cursor object
     cursor = db.cursor()
     
+    #disable autocommit to improve performance
+    sql_order('SET autocommit = 0')
+    sql_order('SET unique_checks = 0')
+    sql_order('SET foreign_key_checks = 0')
+    
     #insert the data of all lines for CO into table lines
     # with open('CO(copy).out') as infile: #
     try:
@@ -78,6 +83,10 @@ def insert_hitran(filename):
         db.commit()
         infile.close()
         
+        #turn it back on
+        sql_order('SET unique_checks = 1')
+        sql_order('SET foreign_key_checks = 1')
+        
         print('Executed {} lines of hitran data'.format(counter))
         
     except Exception as e:
@@ -94,23 +103,14 @@ def insert_hitran(filename):
 def main():
     
     start_time = time.time()
-    
-    #disable autocommit to improve performance
-    sql_order('SET autocommit = 0')
-    sql_order('SET unique_checks = 0')
-    sql_order('SET foreign_key_checks = 0')
-    
+       
     #insert CO data in table 1
     sql_order(CO)
-    
+    PH3 = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % ('PH3', '(31P)(1H)3', 0.999533, 33.997238, 'EXOMOL_SAlTY')
+    sql_order(PH3)
     #insert the data of all lines for CO into table lines
     insert_hitran('/home/toma/Desktop/co_test.out')
-    
-    #turn it back on
-    
-    sql_order('SET unique_checks = 1')
-    sql_order('SET foreign_key_checks = 1')
-    
+        
     print("Finished in %s seconds" % (time.time() - start_time))
     
 if __name__ == '__main__':
