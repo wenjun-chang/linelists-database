@@ -3035,7 +3035,7 @@ def prepareParlist(pargroups=[],params=[],dotpar=True):
     for param in parlist:
         if param not in ASSUMED_PARAMS:
             result.append(param)
-    
+    print(result)
     return result
 
 def prepareHeader(parlist):
@@ -3086,6 +3086,7 @@ def queryHITRAN(TableName,iso_id_list,numin,numax,pargroups=[],params=[],dotpar=
         'iso_ids_list=' + iso_id_list_str + '&' + \
         'numin=' + str(numin) + '&' + \
         'numax=' + str(numax)
+    print(url)
     #raise Exception(url)
     # Download data by chunks.
     if VARIABLES['DISPLAY_FETCH_URL']: print(url+'\n')
@@ -5212,7 +5213,7 @@ def fetch_by_ids(TableName,iso_id_list,numin,numax,ParameterGroups=[],Parameters
     comment(TableName,Comment)
 
 #def queryHITRAN(TableName,iso_id_list,numin,numax):
-def fetch(TableName,M,I,numin,numax,ParameterGroups=[],Parameters=[]):
+def fetch(TableName,M,I,numin,numax,ParameterGroups=[],Parameters=[],dotpar=False):
     """
     INPUT PARAMETERS: 
         TableName:   local table name to fetch in (required)
@@ -5236,7 +5237,7 @@ def fetch(TableName,M,I,numin,numax,ParameterGroups=[],Parameters=[]):
     ---
     """
     queryHITRAN(TableName,[ISO[(M,I)][ISO_INDEX['id']]],numin,numax,
-                pargroups=ParameterGroups,params=Parameters)
+                pargroups=ParameterGroups,params=Parameters,dotpar=dotpar)
     iso_name = ISO[(M,I)][ISO_INDEX['iso_name']]
     Comment = 'Contains lines for '+iso_name
     Comment += ('\n in %.3f-%.3f wavenumber range' % (numin,numax))
