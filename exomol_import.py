@@ -74,11 +74,11 @@ gamma_H2s, n_H2s, J_lowers, rot_lowers, vib_lowers = np.loadtxt('/home/toma/Desk
 #gamma_Hes, n_Hes = np.loadtxt('/home/toma/Desktop/12C-16O__He.broad', usecols=(1, 2), unpack=True)
 gamma_Hes, n_Hes, J_lowers, rot_lowers, vib_lowers = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_He_broad.txt', usecols=(1, 2, 3, 4, 5), unpack=True)
 
-def insert_exomol(start_line, end_line, filename):
-    upper_ids, lower_ids, As = np.loadtxt(itertools.islice(trans, start_line, end_line), usecols=(0, 1, 2), unpack=True)
+def insert_exomol(start_line, end_line, outfile_name, infile):
+    upper_ids, lower_ids, As = np.loadtxt(itertools.islice(infile, start_line, end_line), usecols=(0, 1, 2), unpack=True)
     
     #file that the parameters are written into and import to mysql using LOAD DATA INFILE
-    f = open(filename, 'w') 
+    f = open(outfile_name, 'w') 
     
     file_time = time.time()
     
@@ -214,7 +214,7 @@ with open('/home/toma/Desktop/12C-16O__Li2015.trans') as trans:
     
 
     #out of the while loop when difference between start_line and the max lines in trans file is less than 1e6
-    insert_exomol(start_line, int(length_trans), '/home/toma/Desktop/exomol.txt')
+    insert_exomol(start_line, int(length_trans), '/home/toma/Desktop/exomol.txt', trans)
 
 trans.close()
 

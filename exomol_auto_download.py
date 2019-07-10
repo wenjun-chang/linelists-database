@@ -12,6 +12,7 @@ from urllib import request
 import requests
 from bs4 import BeautifulSoup
 import bz2
+import os
 
 ############################
 
@@ -52,6 +53,7 @@ def get_trans_files(molecule_url, molecule_name):
         soup = BeautifulSoup(plain_text, features='lxml')
         
         #go into the main page for data sets for the isotopologue
+        ###############slight modification needed for full automation
         for link in soup.find_all('a', attrs={'title': 'SAlTY'}):
             #print(link)
             href2 = href + '/' + link.get('href')
@@ -68,24 +70,24 @@ def get_trans_files(molecule_url, molecule_name):
                 #print(link)
                 if link is not None: 
                     href = link.get('href')
-                    #the trans file
                     
+                    #the trans file
                     if href.endswith('.trans.bz2'):
-                        print(href)
-                        trans_link = r'http://exomol.com' + href 
+                        trans_link = r'http://exomol.com' + href
+                        print(trans_link)
                         download_bz2_file(trans_link, molecule_name + '_trans_' + str(file_num))
                         file_num += 1
-                    '''    
+                    '''
                     #the states file
-                    elif href.endswith('.states.bz2'):
-                        #print(href)
+                    elif href.endswith('.states.bz2'):                        
                         states_link = r'http://exomol.com' + href
+                        print(states_link)
                         download_bz2_file(states_link, molecule_name + '_states')
                         
                     #the partition file
                     elif href.endswith('.pf'):
-                        #print(href)
                         partitions_link = r'http://exomol.com' + href
+                        print(partitions_link)
                         download_file(partitions_link, molecule_name + '_partitions')
                     '''
                     
@@ -112,14 +114,10 @@ def get_broad_files(molecule_url, molecule_name):
 def download_file(url, outfile_name):
     #get file info
     file = request.urlopen(url)
-    file_info = str(file.read())[2:-1]
-    print(file_info)
-    file_lines = file_info.split('\\n')[:-1]
-    print(file_lines)
+    file_info = file.read()
     #store file info in outfile
-    outfile = open('{}.txt'.format(outfile_name), 'w')
-    for line in file_lines:
-        outfile.write(line + '\n')
+    outfile = open('{}.txt'.format(outfile_name), 'wb')
+    outfile.write(file_info)
     outfile.close()
     file.close()
 
@@ -127,19 +125,27 @@ def download_file(url, outfile_name):
 def download_bz2_file(bz2_url, outfile_name):
     #get file info
     file = request.urlopen(bz2_url)
-    CHUNK = 16 * 1024
-    
-    decompressor = bz2.BZ2Decompressor()
-    with open('{}.txt'.format(outfile_name), 'wb') as outfile:
-        while True:
-            chunk = file.read(CHUNK)
-            data = decompressor.decompress(chunk)
-            print(data)
-            if not chunk:
-                break
-            outfile.write(data)
+    file_info = file.read()
+    #store file info in outfile
+    compressed = '{}.bz2'.format(outfile_name)
+    outfile = open(compressed, 'wb')
+    outfile.write(file_info)
+    outfile.close()
     file.close()
-           
+    os.system('bzip2 -d /home/toma/Desktop/linelists-database/{}'.format(compressed))
+    
+    '''
+    #can run out of memory
+    file = request.urlopen(bz2_url)
+    #decompressor = bz2.BZ2Decompressor()
+    compressed_data = file.read()
+    data = bz2.decompress(compressed_data)
+    #file_lines = data.decode()
+    #store file info in outfile
+    outfile = open('{}.txt'.format(outfile_name), 'wb')
+    outfile.write(data)
+    outfile.close()
+    '''
     
 ##################       
    
@@ -148,6 +154,7 @@ def main():
     #get_molecule_links()
     get_trans_files(r'http://exomol.com/data/molecules/PH3', 'PH3')
     #get_broad_files(r'http://exomol.com/data/molecules/PH3', 'PH3')
+    #download_bz2_file(r'http://exomol.com/db/PH3/31P-1H3/SAlTY/31P-1H3__SAlTY__00000-00100.trans.bz2', 'test')
     print("Finished in %s seconds" % (time.time() - start_time))
     
 if __name__ == '__main__':
