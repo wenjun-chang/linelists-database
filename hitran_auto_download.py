@@ -38,13 +38,13 @@ f.close()
 mol_ids, iso_ids, iso_names, iso_abundances, iso_masses, mol_names = \
 np.loadtxt('/home/toma/Desktop/molecule_properties (copy).txt', dtype='str', skiprows=1, usecols=(1, 2, 3, 4, 5, 6), unpack=True)
 
-
 for i in range(len(mol_ids)):
+    
     particle_property_query = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % (mol_names[i], iso_names[i], \
                                                            iso_abundances[i], iso_masses[i], 'HITRAN_2016')
     #insert each molecule's properties into particles table
     sql_order(particle_property_query)
-    
+
     #then, fetch all the data from HITRAN using HAPI
     hapi.db_begin('data')
     #becasue cannot choose inifinity as upper limit, use a giant number instead

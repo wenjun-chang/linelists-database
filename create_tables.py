@@ -25,17 +25,17 @@ def create_database():
 ################
         
 #molecule_name format for example, CO2, is (13C)(16O)2
-particles_table_create_query = "CREATE TABLE IF NOT EXISTS particles (molecule_name VARCHAR(12) NOT NULL, \
-iso_name VARCHAR(20) NOT NULL, iso_abundance DOUBLE NOT NULL, iso_mass DOUBLE NOT NULL, default_line_source \
+particles_table_create_query = "CREATE TABLE IF NOT EXISTS particles (molecule_name VARCHAR(5) NOT NULL, \
+iso_name VARCHAR(25) NOT NULL, iso_abundance DOUBLE NOT NULL, iso_mass DOUBLE NOT NULL, default_line_source \
 VARCHAR(25) NOT NULL, particle_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY); "
 
 #create table for all the lines for each particle in table particles
 #nu stands for transition wavenumber
 #a stands for einstein coefficient
 #gp stands for the degeneracy of the lower state
-transitions_table_create_query = "CREATE TABLE IF NOT EXISTS transitions (nu DOUBLE NOT NULL, A DOUBLE NOT NULL, \
-gamma_air DOUBLE, n_air DOUBLE, delta_air DOUBLE, elower DOUBLE NOT NULL, gp SMALLINT NOT NULL, gamma_H2 DOUBLE, \
-n_H2 DOUBLE, delta_H2 DOUBLE, gamma_He DOUBLE, n_He DOUBLE, delta_He DOUBLE, line_source VARCHAR(25) NOT NULL, \
+transitions_table_create_query = "CREATE TABLE IF NOT EXISTS transitions (nu DOUBLE NOT NULL, A FLOAT NOT NULL, \
+gamma_air FLOAT, n_air FLOAT, delta_air FLOAT, elower DOUBLE NOT NULL, gp SMALLINT NOT NULL, gamma_H2 FLOAT, \
+n_H2 FLOAT, delta_H2 FLOAT, gamma_He FLOAT, n_He FLOAT, delta_He FLOAT, line_source VARCHAR(25) NOT NULL, \
 particle_id INT UNSIGNED NOT NULL, line_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY transitions(particle_id) \
 REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE) ROW_FORMAT=COMPRESSED;"
 

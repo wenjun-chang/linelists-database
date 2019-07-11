@@ -131,8 +131,10 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     elif delta_He is None and delta_H2 is not None: #when delta_He does not exist, f_H2 = 1.0
         v_ij_star = v_ij + p * delta_H2
         
-    else: #when both delta_H2 and delta_He does not exist, use delta_air
+    elif delta_air is not None: #when both delta_H2 and delta_He does not exist, use delta_air
         v_ij_star = v_ij + p * delta_air
+    else: #when all deltas do not exist
+        v_ij_star = v_ij
         
         
     #compute normalized line shape function f(v, v_ij, T, p)
@@ -205,12 +207,17 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
     for i in range(rows):
         #fetch one line
         line = cursor.fetchone()
+        cond =  np.logical_and(v >= line[0] - 25, v <= line[0] + 25)
+        if np.sum(cond) > 0:
+            absorption_cross_section[cond] += compute_one_absorption(line, v[cond], T, p, Q, iso_abundance, iso_mass)
+        print(i)
+        '''
         #use the line and given input to compute absorption and put it into a list
         for j in range(len(v)):
             if line[0] >= v[j] - 25 and line[0] <= v[j] + 25:             
                 absorption = compute_one_absorption(line, v[j], T, p, Q, iso_abundance, iso_mass)
                 absorption_cross_section[j] += absorption
-    
+        '''
     #close up cursor and connection
     cursor.close()
     db.close()
@@ -227,11 +234,12 @@ def main():
 
     start_time = time.time()
     
-    wavelengths = np.logspace(np.log10(0.3e-4), np.log10(30e-4), 4616)
+    #wavelengths = np.logspace(np.log10(0.3e-4), np.log10(30e-4), 4616)
+    wavelengths = np.load('/home/toma/Desktop/wavelengths.npy') * 100
     wavenums = 1.0/wavelengths
     #wavelengths = np.exp(np.linspace(np.log(0.3e-4), np.log(30e-4), 4616))
     
-    absorption_cross_section = compute_all(wavenums, 2000, 0.1, '(12C)(16O)', 'HITRAN_2016')
+    absorption_cross_section = compute_all(wavenums, 1000, 0.1, '(12C)(16O)', 'EXOMOL_Li2015')
     #print('absorption_cross_section is', absorption_cross_section)
     np.save('/home/toma/Desktop/absorption.npy', absorption_cross_section)
     

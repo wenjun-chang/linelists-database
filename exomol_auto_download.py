@@ -38,6 +38,8 @@ def has_href_and_title_but_no_class(tag):
     
 
 def get_trans_files(molecule_url, molecule_name):
+    versions= []
+    
     source_code = requests.get(molecule_url)
     plain_text = source_code.text
     soup = BeautifulSoup(plain_text, features='lxml')
@@ -54,44 +56,55 @@ def get_trans_files(molecule_url, molecule_name):
         
         #go into the main page for data sets for the isotopologue
         ###############slight modification needed for full automation
-        for link in soup.find_all('a', attrs={'title': 'SAlTY'}):
-            #print(link)
-            href2 = href + '/' + link.get('href')
-            #print(href2)
-            source_code = requests.get(href2)
-            plain_text = source_code.text
-            soup = BeautifulSoup(plain_text, features='lxml')
+        for link in soup.find_all('a', attrs={'class': 'list-group-item link-list-group-item'}):
+            version_name = link.get('title')
             
-            file_num = 1
-            #ideally at the main page for the desired data type
-            for link in soup.find_all(has_href_and_title_but_no_class):
-                #1. trans
-                #2. partition
+            #make sure it is not an external link
+            if version_name.startswith('xsec') is False: 
+                versions.append(version_name)
+                
                 #print(link)
-                if link is not None: 
-                    href = link.get('href')
-                    
-                    #the trans file
-                    if href.endswith('.trans.bz2'):
-                        trans_link = r'http://exomol.com' + href
-                        print(trans_link)
-                        download_bz2_file(trans_link, molecule_name + '_trans_' + str(file_num))
-                        file_num += 1
-                    '''
-                    #the states file
-                    elif href.endswith('.states.bz2'):                        
-                        states_link = r'http://exomol.com' + href
-                        print(states_link)
-                        download_bz2_file(states_link, molecule_name + '_states')
+                href2 = href + '/' + link.get('href')
+                #print(href2)
+                source_code = requests.get(href2)
+                plain_text = source_code.text
+                soup = BeautifulSoup(plain_text, features='lxml')
+                
+                file_num = 1
+                #ideally at the main page for the desired data type
+                for link in soup.find_all(has_href_and_title_but_no_class):
+                    #1. trans
+                    #2. partition
+                    #3. states
+                    #print(link)
+                    if link is not None: 
+                        href = link.get('href')
                         
-                    #the partition file
-                    elif href.endswith('.pf'):
-                        partitions_link = r'http://exomol.com' + href
-                        print(partitions_link)
-                        download_file(partitions_link, molecule_name + '_partitions')
-                    '''
-                    
-#fine        
+                        #the trans file
+                        if href.endswith('.trans.bz2'):
+                            trans_link = r'http://exomol.com' + href
+                            print(trans_link)
+                            download_bz2_file(trans_link, molecule_name + '_trans_' + str(version_name) + '_' + str(file_num))
+                            file_num += 1
+                        '''
+                        #the states file
+                        elif href.endswith('.states.bz2'):                        
+                            states_link = r'http://exomol.com' + href
+                            print(states_link)
+                            download_bz2_file(states_link, molecule_name + '_states_' + str(version_name))
+                            
+                        #the partition file
+                        elif href.endswith('.pf'):
+                            partitions_link = r'http://exomol.com' + href
+                            print(partitions_link)
+                            download_file(partitions_link, molecule_name + '_partitions_' + str(version_name))
+                        '''
+        #if not at least one of parition, states, and trans file is existing then delete all
+        #if only one partition file, chnage partition filename to general name
+    print('version for', molecule_name, 'includes', *versions)
+    return versions
+#fine
+#if no broad maybe go into get trans and find the header??
 def get_broad_files(molecule_url, molecule_name):           
     source_code = requests.get(molecule_url)
     plain_text = source_code.text

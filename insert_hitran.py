@@ -48,9 +48,9 @@ def insert_hitran(filename, particle_id):
         #query = "INSERT INTO transitions VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'HITRAN_2016', 1, null)"
         
         for line in infile:
-            data = line.split(',')
+            data = line.strip().split(',')
             for i in range(len(data)): 
-                if data[i] == '#' or data[i] == '#\n':
+                if data[i] == '#':
                     data[i] = '\\N'
             #line table arrangement corresponding to tuple indexes: 
             #(nu, a, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source, particle_id, line_id)

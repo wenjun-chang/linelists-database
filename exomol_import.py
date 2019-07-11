@@ -14,8 +14,8 @@ from query_functions import sql_bulk_order, sql_order
 import time
 import itertools
 
-DEFAULT_GAMMA = 0.0750 #0.0700 for CO
-DEFAULT_N = 0.530 #0.500 for CO
+DEFAULT_GAMMA = 0.0700 #750 PH3
+DEFAULT_N = 0.500 #530
 
 #################
 
@@ -34,14 +34,14 @@ sql_order('SET unique_checks = 0')
 sql_order('SET foreign_key_checks = 0')
 
 ##################
-'''
+
 #insert partition file
 
-#Ts, partition_functions = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015_partition.pf', usecols=(0, 1), unpack=True)
-Ts, partition_functions = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_partitions.txt', usecols=(0, 1), unpack=True)
+Ts, partition_functions = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015_partition.pf', usecols=(0, 1), unpack=True)
+#Ts, partition_functions = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_partitions.txt', usecols=(0, 1), unpack=True)
 
 partition_data = [] 
-query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, particle_id, partition_id) VALUES(%s, %s, 2, null)"
+query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, particle_id, partition_id) VALUES(%s, %s, 30, null)"
 
 counter = 0
 for j in range(len(partition_functions)):
@@ -59,20 +59,20 @@ sql_bulk_order(query_insert_partitions, partition_data)
 db.commit()
 
 ################
-'''
+
 #get parameters needed to insert exomol data into transitions
 
 #states in id order starts in 1 
-#Es, gs, Js = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015.states', usecols=(1, 2, 3), unpack=True)
-Es, gs, Js = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_states.txt', usecols=(1, 2, 3), unpack=True)
+Es, gs, Js = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015.states', usecols=(1, 2, 3), unpack=True)
+#Es, gs, Js = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_states.txt', usecols=(1, 2, 3), unpack=True)
 
 #J starts with 0
-#gamma_H2s, n_H2s = np.loadtxt('/home/toma/Desktop/12C-16O__H2.broad', usecols=(1, 2), unpack=True)
-gamma_H2s, n_H2s, J_lowers, rot_lowers, vib_lowers = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_H2_broad.txt', usecols=(1, 2, 3, 4, 5), unpack=True)
+gamma_H2s, n_H2s = np.loadtxt('/home/toma/Desktop/12C-16O__H2.broad', usecols=(1, 2), unpack=True)
+#gamma_H2s, n_H2s, J_lowers, rot_lowers, vib_lowers = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_H2_broad.txt', usecols=(1, 2, 3, 4, 5), unpack=True)
 
 #J starts with 0
-#gamma_Hes, n_Hes = np.loadtxt('/home/toma/Desktop/12C-16O__He.broad', usecols=(1, 2), unpack=True)
-gamma_Hes, n_Hes, J_lowers, rot_lowers, vib_lowers = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_He_broad.txt', usecols=(1, 2, 3, 4, 5), unpack=True)
+gamma_Hes, n_Hes = np.loadtxt('/home/toma/Desktop/12C-16O__He.broad', usecols=(1, 2), unpack=True)
+#gamma_Hes, n_Hes, J_lowers, rot_lowers, vib_lowers = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_He_broad.txt', usecols=(1, 2, 3, 4, 5), unpack=True)
 
 def insert_exomol(start_line, end_line, outfile_name, infile):
     upper_ids, lower_ids, As = np.loadtxt(itertools.islice(infile, start_line, end_line), usecols=(0, 1, 2), unpack=True)
@@ -177,7 +177,7 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
     
     cursor.execute("LOAD DATA LOCAL INFILE '/home/toma/Desktop/exomol.txt' INTO TABLE transitions FIELDS TERMINATED BY ' ' LINES TERMINATED BY '\n' \
               (@col1, @col2, @col3, @col4, @col5, @col6, @col7, @col8) SET nu=@col1, A=@col2, elower=@col3, gp=@col4, \
-              gamma_H2=@col5, n_H2=@col6, gamma_He=@col7, n_He=@col8, line_source='EXOMOL_Li2015', particle_id=2;")
+              gamma_H2=@col5, n_H2=@col6, gamma_He=@col7, n_He=@col8, line_source='EXOMOL_Li2015', particle_id=30;")
     
     db.commit()
     
@@ -191,6 +191,7 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
 #get the number of lines in trans file
     
 '''
+#use this when inserting multiple files of PH3 transitions
 for i in range(num_files):
     filename = '/home/toma/Desktop/linelists-database/PH3_trans_{}.txt'.format(i)
     length_trans = sum(1 for line in open(filename))   
@@ -205,10 +206,10 @@ with open('/home/toma/Desktop/12C-16O__Li2015.trans') as trans:
     max_size = 1e5 
     while length_trans >= start_line + max_size:
         
-        insert_exomol(start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt')
+        insert_exomol(start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt', trans)
         
         #start_line += 1e5
-        #...islice removes all the lines used from the file
+        #islice removes starts from the next line after the last read line
         length_trans -= max_size
         print(length_trans)
     
