@@ -6,6 +6,10 @@ Created on Tue Jul  2 12:27:36 2019
 @author: toma
 """
 
+#imports all HITRAN molecule data into the database except for ClONO2, SF6, and CF4.
+#only external links to HITRAN 2012 data of those molecules are given
+#total molecules = 125 - 3 = 122
+
 import hapi
 import numpy as np
 import time
@@ -48,9 +52,9 @@ for i in range(len(mol_ids)):
     #then, fetch all the data from HITRAN using HAPI
     hapi.db_begin('data')
     #becasue cannot choose inifinity as upper limit, use a giant number instead
-    
+    #gpp is upper state degeneracy
     hapi.fetch(mol_names[i], int(mol_ids[i]), int(iso_ids[i]), 0, 1e9, Parameters=['nu', 'a', 'gamma_air', 'n_air', 'delta_air', \
-               'elower', 'gp', 'gamma_H2', 'n_H2', 'delta_H2', 'gamma_He', 'n_He', 'delta_He'])
+               'elower', 'gpp', 'gamma_H2', 'n_H2', 'delta_H2', 'gamma_He', 'n_He', 'delta_He'])
     
     #open the file and use insert_hitran.py to insert all parameters into transitions table
     filename = '/home/toma/Desktop/linelists-database/data/{}.data'.format(mol_names[i])

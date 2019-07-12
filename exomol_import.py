@@ -16,7 +16,11 @@ import itertools
 
 DEFAULT_GAMMA = 0.0700 #750 PH3
 DEFAULT_N = 0.500 #530
-
+'''
+#for PH3
+DEFAULT_GAMMA = 0.0750
+DEFAULT_N = 0.530
+'''
 #################
 
 start_time = time.time()
@@ -36,9 +40,8 @@ sql_order('SET foreign_key_checks = 0')
 ##################
 
 #insert partition file
-
-Ts, partition_functions = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015_partition.pf', usecols=(0, 1), unpack=True)
-#Ts, partition_functions = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_partitions.txt', usecols=(0, 1), unpack=True)
+#Ts, partition_functions = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015_partition.pf', usecols=(0, 1), unpack=True)
+Ts, partition_functions = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_partitions.txt', usecols=(0, 1), unpack=True)
 
 partition_data = [] 
 query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, particle_id, partition_id) VALUES(%s, %s, 30, null)"
@@ -61,18 +64,45 @@ db.commit()
 ################
 
 #get parameters needed to insert exomol data into transitions
-
+print('loading huge ass states file')
 #states in id order starts in 1 
-Es, gs, Js = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015.states', usecols=(1, 2, 3), unpack=True)
-#Es, gs, Js = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_states.txt', usecols=(1, 2, 3), unpack=True)
+#Es, gs, Js = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015.states', usecols=(1, 2, 3), unpack=True)
+Es, gs, Js, Ks= np.loadtxt('/home/toma/Desktop/linelists-database/PH3_states.txt', usecols=(1, 2, 3, 6), unpack=True)
+print('finished loading huge ass states file')
+
+#helper function for temporarily storing the data of H2/He broadening parameters
+def temp_broad_param_dict(infile):
+    broad_param_dict = {}
+    with open(infile) as f: 
+        #store [gamma_H2/Hes, n_H2/Hes] as a list in the dictionary with key as J + '_' + K
+        for line in f: 
+            data = line.strip().split()
+            #if the prefix code is a1 or c1
+            if data[0].endswith('1'):
+                gamma = data[1]
+                n = data[2]
+                J = data[3]
+                K = data[4]
+                broad_param = {J + '_' + K : [gamma, n]}
+                broad_param_dict.update(broad_param)
+            elif data[0].endswith('0'):
+                gamma = data[1]
+                n = data[2]
+                J = data[3]
+                broad_param = {J : [gamma, n]}
+                broad_param_dict.update(broad_param)
+    return broad_param_dict
+
+H2_dict = temp_broad_param_dict('/home/toma/Desktop/linelists-database/PH3_H2_broad.txt')
+
+He_dict = temp_broad_param_dict('/home/toma/Desktop/linelists-database/PH3_He_broad.txt')
+
+##########for CO braod param data only
+#J starts with 0
+#gamma_H2s, n_H2s = np.loadtxt('/home/toma/Desktop/12C-16O__H2.broad', usecols=(1, 2), unpack=True)
 
 #J starts with 0
-gamma_H2s, n_H2s = np.loadtxt('/home/toma/Desktop/12C-16O__H2.broad', usecols=(1, 2), unpack=True)
-#gamma_H2s, n_H2s, J_lowers, rot_lowers, vib_lowers = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_H2_broad.txt', usecols=(1, 2, 3, 4, 5), unpack=True)
-
-#J starts with 0
-gamma_Hes, n_Hes = np.loadtxt('/home/toma/Desktop/12C-16O__He.broad', usecols=(1, 2), unpack=True)
-#gamma_Hes, n_Hes, J_lowers, rot_lowers, vib_lowers = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_He_broad.txt', usecols=(1, 2, 3, 4, 5), unpack=True)
+#gamma_Hes, n_Hes = np.loadtxt('/home/toma/Desktop/12C-16O__He.broad', usecols=(1, 2), unpack=True)
 
 def insert_exomol(start_line, end_line, outfile_name, infile):
     upper_ids, lower_ids, As = np.loadtxt(itertools.islice(infile, start_line, end_line), usecols=(0, 1, 2), unpack=True)
@@ -90,9 +120,29 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
         
         E_upper = Es[upper_id - 1]
         E_lower = Es[lower_id - 1]
-        gp = gs[lower_id - 1]
-        J_lower = int(Js[lower_id - 1])
+        g_upper = gs[upper_id - 1]
+        J_lower = Js[lower_id - 1]
         
+        #K for c1 or a1 param style
+        K_lower = Ks[lower_id - 1]
+        
+        #get H2 params
+        if H2_dict.get(str(J_lower) + '_' + str(K_lower)) is not None: 
+            gamma_H2 = H2_dict.get(str(J_lower) + '_' + str(K_lower))[0]
+            n_H2 = H2_dict.get(str(J_lower) + '_' + str(K_lower))[1]
+        else: 
+            gamma_H2 = H2_dict.get(str(J_lower))[0]
+            n_H2 = H2_dict.get(str(J_lower))[1]
+        
+        #get He params
+        if He_dict.get(str(J_lower) + '_' + str(K_lower)) is not None: 
+            gamma_He = He_dict.get(str(J_lower) + '_' + str(K_lower))[0]
+            n_H2 = He_dict.get(str(J_lower) + '_' + str(K_lower))[1]
+        else: 
+            gamma_He = He_dict.get(str(J_lower))[0]
+            n_He = He_dict.get(str(J_lower))[1]
+            
+        '''
         #store length into variable to run faster
         len_H2 = len(n_H2s)
         len_He = len(n_Hes)
@@ -119,33 +169,8 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
             n_H2 = DEFAULT_N
             gamma_He = DEFAULT_GAMMA
             n_He = DEFAULT_N
+        '''
         
-        '''
-        else:
-            if len_H2 >= len_He:
-                if J_lower >= len_He and J_lower < len_H2:
-                    gamma_H2 = gamma_H2s[J_lower]
-                    n_H2 = n_H2s[J_lower]
-                    gamma_He = DEFAULT_GAMMA
-                    n_He = DEFAULT_N
-                else: 
-                    gamma_H2 = DEFAULT_GAMMA
-                    n_H2 = DEFAULT_N
-                    gamma_He = DEFAULT_GAMMA
-                    n_He = DEFAULT_N
-            elif len_H2 < len_He:
-                if J_lower >= len_H2 and J_lower < len_H2:
-                    gamma_H2 = DEFAULT_GAMMA
-                    n_H2 = DEFAULT_N
-                    gamma_He = gamma_Hes[J_lower]
-                    n_He = n_Hes[J_lower]
-                else: 
-                    gamma_H2 = DEFAULT_GAMMA
-                    n_H2 = DEFAULT_N
-                    gamma_He = DEFAULT_GAMMA
-                    n_He = DEFAULT_N
-        '''
-
         if gamma_H2 is None: 
             gamma_H2 = DEFAULT_GAMMA
         if gamma_He is None: 
@@ -157,7 +182,7 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
         
         v_ij = E_upper - E_lower
         
-        data = [v_ij, A, E_lower, gp, gamma_H2, n_H2, gamma_He, n_He]
+        data = [v_ij, A, E_lower, g_upper, gamma_H2, n_H2, gamma_He, n_He]
             
         for item in data: 
             f.write("%s " % item)
@@ -176,7 +201,7 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
     print("Bulk inserting exomol data...")
     
     cursor.execute("LOAD DATA LOCAL INFILE '/home/toma/Desktop/exomol.txt' INTO TABLE transitions FIELDS TERMINATED BY ' ' LINES TERMINATED BY '\n' \
-              (@col1, @col2, @col3, @col4, @col5, @col6, @col7, @col8) SET nu=@col1, A=@col2, elower=@col3, gp=@col4, \
+              (@col1, @col2, @col3, @col4, @col5, @col6, @col7, @col8) SET nu=@col1, A=@col2, elower=@col3, g_upper=@col4, \
               gamma_H2=@col5, n_H2=@col6, gamma_He=@col7, n_He=@col8, line_source='EXOMOL_Li2015', particle_id=30;")
     
     db.commit()

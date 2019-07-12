@@ -32,9 +32,9 @@ VARCHAR(25) NOT NULL, particle_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY K
 #create table for all the lines for each particle in table particles
 #nu stands for transition wavenumber
 #a stands for einstein coefficient
-#gp stands for the degeneracy of the lower state
+#g_upper stands for the degeneracy of the uppper state
 transitions_table_create_query = "CREATE TABLE IF NOT EXISTS transitions (nu DOUBLE NOT NULL, A FLOAT NOT NULL, \
-gamma_air FLOAT, n_air FLOAT, delta_air FLOAT, elower DOUBLE NOT NULL, gp SMALLINT NOT NULL, gamma_H2 FLOAT, \
+gamma_air FLOAT, n_air FLOAT, delta_air FLOAT, elower DOUBLE NOT NULL, g_upper SMALLINT NOT NULL, gamma_H2 FLOAT, \
 n_H2 FLOAT, delta_H2 FLOAT, gamma_He FLOAT, n_He FLOAT, delta_He FLOAT, line_source VARCHAR(25) NOT NULL, \
 particle_id INT UNSIGNED NOT NULL, line_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY transitions(particle_id) \
 REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE) ROW_FORMAT=COMPRESSED;"

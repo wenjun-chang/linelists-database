@@ -53,7 +53,7 @@ def insert_hitran(filename, particle_id):
                 if data[i] == '#':
                     data[i] = '\\N'
             #line table arrangement corresponding to tuple indexes: 
-            #(nu, a, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source, particle_id, line_id)
+            #(nu, a, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source, particle_id, line_id)
             #( 0, 1,      2,       3,       4,        5,    6,    7,       8,      9,       10,      11,    12,        13,         14,         15  )
             
             #make sure at least one gamma and one n value is not null
@@ -75,7 +75,7 @@ def insert_hitran(filename, particle_id):
         
         cursor.execute("LOAD DATA LOCAL INFILE '/home/toma/Desktop/hitran.txt' INTO TABLE transitions FIELDS TERMINATED BY ' ' LINES TERMINATED BY '\n' \
                   (@col1, @col2, @col3, @col4, @col5, @col6, @col7, @col8, @col9, @col10, @col11, @col12, @col13) SET nu=@col1, A=@col2, gamma_air=@col3, \
-                  n_air=@col4, delta_air=@col5, elower=@col6, gp=@col7, gamma_H2=@col8, n_H2=@col9, delta_H2=@col10, gamma_He=@col11, n_He=@col12, \
+                  n_air=@col4, delta_air=@col5, elower=@col6, g_upper=@col7, gamma_H2=@col8, n_H2=@col9, delta_H2=@col10, gamma_He=@col11, n_He=@col12, \
                   delta_He=@col13, line_source='HITRAN_2016', particle_id={};".format(particle_id))
         
         #commit changes and close file

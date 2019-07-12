@@ -37,7 +37,7 @@ T_ref = 296
 #store the value of c_2 = h * c / k_B
 c_2 = h * c / k_B
 #store the conversion from gram to amu
-G_TO_AMU = 1.66053904e-24
+G_TO_AMU = 1.66054e-24#1.66053904e-24
 
 ########################
 
@@ -77,7 +77,7 @@ def get_particle(iso_name):
 def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     #line is a tuple returned by fetchone() operation
     #parameters for fectone() data corresponding to tuple indexes: 
-    #(nu, a, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He)
+    #(nu, a, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He)
     #(0,  1,     2,       3,       4,        5,     6,    7,       8,      9,      10,      11,     12   )
     
     #just name the variables to make things clear and easy to check
@@ -87,7 +87,7 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     n_air = line[3]
     delta_air = line[4]
     elower = line[5]
-    gp = line[6]
+    g_upper = line[6]
     gamma_H2 = line[7]
     n_H2 = line[8]
     delta_H2 = line[9]
@@ -96,7 +96,7 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     delta_He = line[12]
     
     #compute line intensity function S_ij(T)
-    S_ij = (iso_abundance * a * gp * math.exp(-c_2 * elower / T) * (1 - math.exp(-c_2 * v_ij / T))) / (8 * math.pi * c * math.pow(v_ij, 2) * Q)
+    S_ij = (iso_abundance * a * g_upper * math.exp(-c_2 * elower / T) * (1 - math.exp(-c_2 * v_ij / T))) / (8 * math.pi * c * math.pow(v_ij, 2) * Q)
     
     #compute gamma(p,T) for f
     #T_red = 296 K
@@ -104,7 +104,7 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     #where f_H2 = 0.85 and f_He = 0.15
     #if either n_H2 or n_He does not exist, f_H2/He (the exisiting one) = 1.0
     if n_H2 is not None and gamma_H2 is not None and n_He is not None and gamma_He is not None:
-        gamma_p_T = p * (math.pow(T_ref/ T, n_H2) * gamma_H2 * 0.85 + math.pow(T_ref / T,n_He) * gamma_He * 0.15)
+        gamma_p_T = p * (math.pow(T_ref/ T, n_H2) * gamma_H2 * 0.85 + math.pow(T_ref / T, n_He) * gamma_He * 0.15)
         
     #if n_H2 does not exist, f_He = 1
     elif (n_H2 is None  or gamma_H2 is None) and (n_He is not None and gamma_He is not None):
@@ -146,6 +146,13 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     #what is f_0
     droppler_broad = math.sqrt((8 * k_B * T * math.log(2)) / (iso_mass * G_TO_AMU * c**2)) * v_ij
     
+    
+    x_0=v_ij_star
+    amplitude_L= 1 / (gamma_p_T * math.pi)
+    fwhm_L=2 * gamma_p_T
+    fwhm_G=droppler_broad
+    print(x_0, amplitude_L, fwhm_L, fwhm_G)
+    
     absorption_function = Voigt1D(x_0=v_ij_star, amplitude_L= 1 / (gamma_p_T * math.pi), fwhm_L=2 * gamma_p_T, fwhm_G=droppler_broad)
     
     absorption = S_ij * absorption_function(v)
@@ -183,13 +190,13 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
     
     if default == True: 
         #use this query for getting the lines of default line source
-        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, gp, gamma_H2, n_H2, delta_H2, gamma_He, n_He, \
+        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, \
         delta_He FROM transitions INNER JOIN particles ON particles.default_line_source = transitions.line_source \
         WHERE particles.particle_id = {};".format(particle_id)
     
     else:
         #query for all the lines of the specified isotopologue from the user given nu, line_source
-        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, gp, gamma_H2, \
+        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, \
         n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
         line_source = '{}'".format(particle_id, line_source)
     
@@ -228,16 +235,23 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
 
 #obtain input v, T, p, iso_name, line_source from the user
 def main():
-    #1,2,3,4,5
-    #1,10,100,1000,10000
-    #1,2,4,8,16
+    
+    
+    wavenums = np.loadtxt('/home/toma/Desktop/output_1000_1d-1.xsec', usecols=0, unpack=True)
+    line = (8410.624300000001, 0.00007795, None, None, None, 3.845, 1, 0.0747, 0.658, None, 0.048, 0.6, None)
+    a = compute_one_absorption(line, wavenums, 1000, 0.1, 380.297, 0.98654, 27.994915)
+    np.save('/home/toma/Desktop/temp.npy', a)
+    print(a)
+    '''
 
     start_time = time.time()
     
-    #wavelengths = np.logspace(np.log10(0.3e-4), np.log10(30e-4), 4616)
-    wavelengths = np.load('/home/toma/Desktop/wavelengths.npy') * 100
-    wavenums = 1.0/wavelengths
+    #wavelengths in m --> convert to cm (x100)
+    #wavelengths = np.loadtxt('/home/toma/Desktop/output_1000_1d-1.xsec', usecols=1, unpack=True) * 100
+    #thus, wavenums in cm^-1
+    #wavenums = 1.0/wavelengths
     #wavelengths = np.exp(np.linspace(np.log(0.3e-4), np.log(30e-4), 4616))
+    wavenums = np.loadtxt('/home/toma/Desktop/output_1000_1d-1.xsec', usecols=0, unpack=True)
     
     absorption_cross_section = compute_all(wavenums, 1000, 0.1, '(12C)(16O)', 'EXOMOL_Li2015')
     #print('absorption_cross_section is', absorption_cross_section)
@@ -245,7 +259,7 @@ def main():
     
     print("Finished in %s seconds" % (time.time() - start_time))
     
-    '''
+    
     print('Hello! Welcome to Toma\'s linelist database, sir.')
     toma = input('Do you want to obtain absorption cross section data today, Sir? \nEnter: Y or n \n')
     while True: 
