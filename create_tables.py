@@ -55,6 +55,13 @@ broad_params_table_create_query =  "CREATE TABLE IF NOT EXISTS broad_params \
 (J SMALLINT NOT NULL, gamma_H2 DOUBLE, n_H2 DOUBLE, gamma_He DOUBLE, n_He DOUBLE, \
 particle_id INT UNSIGNED NOT NULL, broad_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY);"
 
+#create table source_properties to store the limits and availbility of the parameters for each source from HITRAN or EXOMOL
+source_properties_table_create_query = "CREATE TABLE IF NOT EXISTS source_properties (line_source VARCHAR(25) NOT NULL, \
+max_temperature SMALLINT NOT NULL#do i need this since assuming one pf for one isotopologue, max_nu DOUBLE NOT NULL, \
+num_lines BIGINT NOT NULL, bool_air ENUM('YES', 'NO') NOT NULL, bool_H2 ENUM('YES', 'NO') NOT NULL, bool_He ENUM('YES', 'NO') NOT NULL, \
+reference_paper VARCHAR(100) NOT NULL, source_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY \
+source_properties(line_source) REFERENCES transitions(line_source) ON UPDATE CASCADE ON DELETE CASCADE);"
+
 ##################
 
 #create indexes on nu, A, elower, and line_source in table transitions
@@ -79,6 +86,7 @@ def main():
     sql_order(states_table_create_query)
     sql_order(broad_params_table_create_query)
     
+    # sql_order(source_properties_table_create_query) ######create this table when the database is entirely populated
     
     '''
     #create the indexes in table transitions

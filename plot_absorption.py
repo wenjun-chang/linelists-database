@@ -18,15 +18,15 @@ wavelengths = (1 / wavenums) * 1e4
 
 
 #plt.subplot(1, 2, 1)
-plt.plot(wavelengths, database_absorption/0.986544)
+plt.plot(wavelengths, database_absorption/0.98654)
 #plt.subplot(1, 2, 2)
 plt.plot(wavelengths, exocross_absorption)
 
-'''
-plt.plot(wavelengths, temp)
-plt.plot(wavelengths, temp_exo)
-'''
-ratio = exocross_absorption / (database_absorption/0.986544)
+
+#plt.plot(wavelengths, temp/0.98654)
+#plt.plot(wavelengths, temp_exo)
+
+#ratio = exocross_absorption / (database_absorption/0.98654)
 #plt.plot(wavelengths, np.abs(ratio))
 
 plt.xscale('log')

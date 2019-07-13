@@ -23,7 +23,8 @@ from query_functions import fetch
 import numpy as np
 import time
 from astropy.modeling.models import Voigt1D
-import numexpr as ne
+import scipy
+
 ######################
 
 #store the value of speed of light in cm/s
@@ -135,32 +136,20 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
         v_ij_star = v_ij + p * delta_air
     else: #when all deltas do not exist
         v_ij_star = v_ij
-        
-        
-    #compute normalized line shape function f(v, v_ij, T, p)
-    #############old 
-    '''f = gamma_p_T / (math.pi * (math.pow(gamma_p_T, 2) + (v - v_ij_star)**2))'''
     
+    #alternative way to compute voigt function: 70.0055468082428 seconds ; 0.01% diff ; 18% speed up
+    sigma_thermal = np.sqrt(k_B * T / iso_mass / G_TO_AMU / c**2) * v_ij_star
+    z = (v - v_ij_star + gamma_p_T * 1j) / sigma_thermal / np.sqrt(2)
+    voigt_profile = np.real(scipy.special.wofz(z))/sigma_thermal / np.sqrt(2*math.pi)
+    absorption = S_ij * voigt_profile
     
-    
-    #what is f_0
-    droppler_broad = math.sqrt((8 * k_B * T * math.log(2)) / (iso_mass * G_TO_AMU * c**2)) * v_ij
-    
-    
-    x_0=v_ij_star
-    amplitude_L= 1 / (gamma_p_T * math.pi)
-    fwhm_L=2 * gamma_p_T
-    fwhm_G=droppler_broad
-    print(x_0, amplitude_L, fwhm_L, fwhm_G)
-    
-    absorption_function = Voigt1D(x_0=v_ij_star, amplitude_L= 1 / (gamma_p_T * math.pi), fwhm_L=2 * gamma_p_T, fwhm_G=droppler_broad)
-    
+    '''
+    #astropy way computing voigt function : 86.21910214424133 seconds ; 0.01% diff
+    doppler_broad = math.sqrt((8 * k_B * T * math.log(2)) / (iso_mass * G_TO_AMU * c**2)) * v_ij
+    absorption_function = Voigt1D(x_0=v_ij_star, amplitude_L= 1 / (gamma_p_T * math.pi), fwhm_L=2 * gamma_p_T, fwhm_G=doppler_broad)
     absorption = S_ij * absorption_function(v)
+    '''
     
-    '''
-    #compute absorption cross section
-    absorption = S_ij * f
-    '''
     return absorption
 
 ###################
@@ -185,9 +174,6 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
     #create a cursor object
     cursor = db.cursor()
     
-    
-    #####################add when default
-    
     if default == True: 
         #use this query for getting the lines of default line source
         query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, \
@@ -195,7 +181,7 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
         WHERE particles.particle_id = {};".format(particle_id)
     
     else:
-        #query for all the lines of the specified isotopologue from the user given nu, line_source
+        #query for all the lines of the3.7729922865792e-27 specified isotopologue from the user given nu, line_source
         query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, \
         n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
         line_source = '{}'".format(particle_id, line_source)
@@ -206,25 +192,29 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
     cursor.execute(query)
     #rowcount is a read-only attribute and returns the number of rows that were affected by the execute() method.
     rows = cursor.rowcount
-    print(rows)
+    print(rows, 'lines')
     #the table could be gigantic, therefore fetchall() could be slow, therefore
     #would rather fetch one single line as a tuple ( , , , ) each time and
     #compute the absorption for that line, store it in variable and sum it over iterations. 
     absorption_cross_section = np.zeros(len(v))
+    '''
+    a = 0
+    lines = cursor.fetchall() #can use fetchmany(size=x) as well if concerned about running out of memory
+    for line in lines: 
+        cond =  np.logical_and(v >= line[0] - 25, v <= line[0] + 25)
+        if np.sum(cond) > 0:
+            absorption_cross_section[cond] += compute_one_absorption(line, v[cond], T, p, Q, iso_abundance, iso_mass)
+        a+=1
+        print(a)
+    '''
     for i in range(rows):
         #fetch one line
         line = cursor.fetchone()
         cond =  np.logical_and(v >= line[0] - 25, v <= line[0] + 25)
         if np.sum(cond) > 0:
             absorption_cross_section[cond] += compute_one_absorption(line, v[cond], T, p, Q, iso_abundance, iso_mass)
-        print(i)
-        '''
-        #use the line and given input to compute absorption and put it into a list
-        for j in range(len(v)):
-            if line[0] >= v[j] - 25 and line[0] <= v[j] + 25:             
-                absorption = compute_one_absorption(line, v[j], T, p, Q, iso_abundance, iso_mass)
-                absorption_cross_section[j] += absorption
-        '''
+        #print(i)
+    
     #close up cursor and connection
     cursor.close()
     db.close()
@@ -236,14 +226,14 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
 #obtain input v, T, p, iso_name, line_source from the user
 def main():
     
-    
+    '''
     wavenums = np.loadtxt('/home/toma/Desktop/output_1000_1d-1.xsec', usecols=0, unpack=True)
     line = (8410.624300000001, 0.00007795, None, None, None, 3.845, 1, 0.0747, 0.658, None, 0.048, 0.6, None)
     a = compute_one_absorption(line, wavenums, 1000, 0.1, 380.297, 0.98654, 27.994915)
     np.save('/home/toma/Desktop/temp.npy', a)
     print(a)
     '''
-
+    
     start_time = time.time()
     
     #wavelengths in m --> convert to cm (x100)
@@ -259,7 +249,7 @@ def main():
     
     print("Finished in %s seconds" % (time.time() - start_time))
     
-    
+    '''
     print('Hello! Welcome to Toma\'s linelist database, sir.')
     toma = input('Do you want to obtain absorption cross section data today, Sir? \nEnter: Y or n \n')
     while True: 

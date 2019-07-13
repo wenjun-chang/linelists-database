@@ -14,13 +14,17 @@ from query_functions import sql_bulk_order, sql_order
 import time
 import itertools
 
+'''
+#for CO
 DEFAULT_GAMMA = 0.0700 #750 PH3
 DEFAULT_N = 0.500 #530
+particle_id = 30
 '''
 #for PH3
 DEFAULT_GAMMA = 0.0750
 DEFAULT_N = 0.530
-'''
+particle_id = 93 # for PH3
+
 #################
 
 start_time = time.time()
@@ -44,7 +48,7 @@ sql_order('SET foreign_key_checks = 0')
 Ts, partition_functions = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_partitions.txt', usecols=(0, 1), unpack=True)
 
 partition_data = [] 
-query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, particle_id, partition_id) VALUES(%s, %s, 30, null)"
+query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, particle_id, partition_id) VALUES(%s, %s, {}, null)".format(particle_id)
 
 counter = 0
 for j in range(len(partition_functions)):
@@ -62,13 +66,13 @@ sql_bulk_order(query_insert_partitions, partition_data)
 db.commit()
 
 ################
-
+states_time = time.time()
 #get parameters needed to insert exomol data into transitions
-print('loading huge ass states file')
+print('Loading huge ass states file')
 #states in id order starts in 1 
 #Es, gs, Js = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015.states', usecols=(1, 2, 3), unpack=True)
 Es, gs, Js, Ks= np.loadtxt('/home/toma/Desktop/linelists-database/PH3_states.txt', usecols=(1, 2, 3, 6), unpack=True)
-print('finished loading huge ass states file')
+print('Finished loading states file in %s seconds' % (time.time() - states_time))
 
 #helper function for temporarily storing the data of H2/He broadening parameters
 def temp_broad_param_dict(infile):
@@ -104,7 +108,7 @@ He_dict = temp_broad_param_dict('/home/toma/Desktop/linelists-database/PH3_He_br
 #J starts with 0
 #gamma_Hes, n_Hes = np.loadtxt('/home/toma/Desktop/12C-16O__He.broad', usecols=(1, 2), unpack=True)
 
-def insert_exomol(start_line, end_line, outfile_name, infile):
+def insert_exomol(start_line, end_line, outfile_name, infile, particle_id):
     upper_ids, lower_ids, As = np.loadtxt(itertools.islice(infile, start_line, end_line), usecols=(0, 1, 2), unpack=True)
     
     #file that the parameters are written into and import to mysql using LOAD DATA INFILE
@@ -120,29 +124,67 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
         
         E_upper = Es[upper_id - 1]
         E_lower = Es[lower_id - 1]
-        g_upper = gs[upper_id - 1]
-        J_lower = Js[lower_id - 1]
+        g_upper = int(gs[upper_id - 1])
+        J_lower = int(Js[lower_id - 1])
         
         #K for c1 or a1 param style
-        K_lower = Ks[lower_id - 1]
+        K_lower = int(Ks[lower_id - 1])
+        
+        #print(upper_id, lower_id, A, E_upper, E_lower, g_upper, J_lower, K_lower)
+        #print(H2_dict.get(str(J_lower) + '_' + str(K_lower)))
         
         #get H2 params
-        if H2_dict.get(str(J_lower) + '_' + str(K_lower)) is not None: 
-            gamma_H2 = H2_dict.get(str(J_lower) + '_' + str(K_lower))[0]
-            n_H2 = H2_dict.get(str(J_lower) + '_' + str(K_lower))[1]
-        else: 
-            gamma_H2 = H2_dict.get(str(J_lower))[0]
-            n_H2 = H2_dict.get(str(J_lower))[1]
-        
+        if H2_dict.get(str(J_lower) + '_' + str(K_lower)) is not None: #look for specific params by J and K
+            H2_params = H2_dict.get(str(J_lower) + '_' + str(K_lower))
+            if H2_params[0] is not None: 
+                gamma_H2 = H2_params[0]
+            else: 
+                gamma_H2 = DEFAULT_GAMMA
+            if H2_params[1] is not None: 
+                n_H2 = H2_params[1]
+            else: 
+                n_H2 = DEFAULT_N
+        elif H2_dict.get(str(J_lower)) is not None: #use the more generalized params by J
+            H2_params = H2_dict.get(str(J_lower))
+            if H2_params[0] is not None: 
+                gamma_H2 = H2_params[0]
+            else: 
+                gamma_H2 = DEFAULT_GAMMA
+            if H2_params[1] is not None: 
+                n_H2 = H2_params[1]
+            else: 
+                n_H2 = DEFAULT_N
+        else: #if cannot find params by J, set them to default
+            gamma_H2 = DEFAULT_GAMMA
+            n_H2 = DEFAULT_N
+    
         #get He params
         if He_dict.get(str(J_lower) + '_' + str(K_lower)) is not None: 
-            gamma_He = He_dict.get(str(J_lower) + '_' + str(K_lower))[0]
-            n_H2 = He_dict.get(str(J_lower) + '_' + str(K_lower))[1]
-        else: 
-            gamma_He = He_dict.get(str(J_lower))[0]
-            n_He = He_dict.get(str(J_lower))[1]
+            He_params = He_dict.get(str(J_lower) + '_' + str(K_lower))
+            if He_params[0] is not None: 
+                gamma_He = He_params[0]
+            else: 
+                gamma_He = DEFAULT_GAMMA
+            if He_params[1] is not None: 
+                n_He = He_params[1]
+            else: 
+                n_He = DEFAULT_N
+        elif He_dict.get(str(J_lower)) is not None: 
+            He_params = He_dict.get(str(J_lower))
+            if He_params[0] is not None: 
+                gamma_He = He_params[0]
+            else: 
+                gamma_He = DEFAULT_GAMMA
+            if He_params[1] is not None: 
+                n_He = He_params[1]
+            else: 
+                n_He = DEFAULT_N
+        else: #if cannot find params by J, set them to default
+            gamma_He = DEFAULT_GAMMA
+            n_He = DEFAULT_N
             
         '''
+        #used for CO i.e. for when H2/He params are loaded using np.loadtxt()
         #store length into variable to run faster
         len_H2 = len(n_H2s)
         len_He = len(n_Hes)
@@ -169,7 +211,6 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
             n_H2 = DEFAULT_N
             gamma_He = DEFAULT_GAMMA
             n_He = DEFAULT_N
-        '''
         
         if gamma_H2 is None: 
             gamma_H2 = DEFAULT_GAMMA
@@ -179,6 +220,7 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
             n_H2 = DEFAULT_N
         if n_He is None: 
             n_He = DEFAULT_N
+        '''
         
         v_ij = E_upper - E_lower
         
@@ -202,7 +244,7 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
     
     cursor.execute("LOAD DATA LOCAL INFILE '/home/toma/Desktop/exomol.txt' INTO TABLE transitions FIELDS TERMINATED BY ' ' LINES TERMINATED BY '\n' \
               (@col1, @col2, @col3, @col4, @col5, @col6, @col7, @col8) SET nu=@col1, A=@col2, elower=@col3, g_upper=@col4, \
-              gamma_H2=@col5, n_H2=@col6, gamma_He=@col7, n_He=@col8, line_source='EXOMOL_Li2015', particle_id=30;")
+              gamma_H2=@col5, n_H2=@col6, gamma_He=@col7, n_He=@col8, line_source='EXOMOL_Li2015', particle_id={};".format(particle_id))
     
     db.commit()
     
@@ -212,37 +254,37 @@ def insert_exomol(start_line, end_line, outfile_name, infile):
 ################
 
 #transition file
-#max_rows =.....
-#get the number of lines in trans file
-    
-'''
-#use this when inserting multiple files of PH3 transitions
-for i in range(num_files):
-    filename = '/home/toma/Desktop/linelists-database/PH3_trans_{}.txt'.format(i)
-    length_trans = sum(1 for line in open(filename))   
-    
-    with open(filename).....
-'''
-length_trans = sum(1 for line in open('/home/toma/Desktop/12C-16O__Li2015.trans'))
-print(length_trans)
 counter = 0 
-with open('/home/toma/Desktop/12C-16O__Li2015.trans') as trans:
-    start_line = 0
-    max_size = 1e5 
-    while length_trans >= start_line + max_size:
-        
-        insert_exomol(start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt', trans)
-        
-        #start_line += 1e5
-        #islice removes starts from the next line after the last read line
-        length_trans -= max_size
-        print(length_trans)
+
+#length_trans = sum(1 for line in open('/home/toma/Desktop/12C-16O__Li2015.trans'))
+
+#with open('/home/toma/Desktop/12C-16O__Li2015.trans') as trans: #for CO
+for file_num in range(1, 101):
+    curr_file = '/home/toma/Desktop/linelists-database/PH3_trans_{}'.format(file_num)
     
-
-    #out of the while loop when difference between start_line and the max lines in trans file is less than 1e6
-    insert_exomol(start_line, int(length_trans), '/home/toma/Desktop/exomol.txt', trans)
-
-trans.close()
+    #get the number of lines in trans file
+    length_trans = sum(1 for line in open(curr_file))
+    print(length_trans)
+    
+    with open(curr_file) as trans:
+        start_line = 0
+        max_size = 1e6 
+        while length_trans >= start_line + max_size:
+            
+            insert_exomol(start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt', trans, particle_id)
+            
+            #start_line += 1e5
+            #islice removes starts from the next line after the last read line
+            length_trans -= max_size
+            int(print(length_trans))
+        
+    
+        #out of the while loop when difference between start_line and the max lines in trans file is less than 1e6
+        insert_exomol(start_line, int(length_trans), '/home/toma/Desktop/exomol.txt', trans, particle_id)
+        
+        print('Finished loading {} with {} lines of data'.format(curr_file, int(length_trans)))
+    
+    trans.close()
 
 ###################
 

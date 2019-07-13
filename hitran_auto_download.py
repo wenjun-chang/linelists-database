@@ -48,7 +48,7 @@ for i in range(len(mol_ids)):
                                                            iso_abundances[i], iso_masses[i], 'HITRAN_2016')
     #insert each molecule's properties into particles table
     sql_order(particle_property_query)
-
+    
     #then, fetch all the data from HITRAN using HAPI
     hapi.db_begin('data')
     #becasue cannot choose inifinity as upper limit, use a giant number instead
