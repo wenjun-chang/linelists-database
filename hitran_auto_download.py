@@ -48,7 +48,7 @@ for i in range(len(mol_ids)):
                                                            iso_abundances[i], iso_masses[i], 'HITRAN_2016')
     #insert each molecule's properties into particles table
     sql_order(particle_property_query)
-    
+    '''
     #then, fetch all the data from HITRAN using HAPI
     hapi.db_begin('data')
     #becasue cannot choose inifinity as upper limit, use a giant number instead
@@ -58,6 +58,7 @@ for i in range(len(mol_ids)):
     
     #open the file and use insert_hitran.py to insert all parameters into transitions table
     filename = '/home/toma/Desktop/linelists-database/data/{}.data'.format(mol_names[i])
+    
     insert_hitran.insert_hitran(filename, i + 1)
     
     #delete the files since the files are named by HAPI using mol_name instead of iso_name
@@ -65,5 +66,5 @@ for i in range(len(mol_ids)):
     header_filename = '/home/toma/Desktop/linelists-database/data/{}.header'.format(mol_names[i])
     os.remove(filename)
     os.remove(header_filename)
-    
+    '''
 print("Finished in %s seconds" % (time.time() - start_time))

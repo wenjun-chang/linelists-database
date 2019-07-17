@@ -40,9 +40,10 @@ cursor = db.cursor()
 sql_order('SET autocommit = 0')
 sql_order('SET unique_checks = 0')
 sql_order('SET foreign_key_checks = 0')
+sql_order('SET sql_log_bin = 0')
 
 ##################
-
+'''
 #insert partition file
 #Ts, partition_functions = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015_partition.pf', usecols=(0, 1), unpack=True)
 Ts, partition_functions = np.loadtxt('/home/toma/Desktop/linelists-database/PH3_partitions.txt', usecols=(0, 1), unpack=True)
@@ -64,7 +65,7 @@ print("Executed {} lines of partition data".format(counter))
 
 sql_bulk_order(query_insert_partitions, partition_data)    
 db.commit()
-
+'''
 ################
 states_time = time.time()
 #get parameters needed to insert exomol data into transitions
@@ -100,7 +101,10 @@ def temp_broad_param_dict(infile):
 H2_dict = temp_broad_param_dict('/home/toma/Desktop/linelists-database/PH3_H2_broad.txt')
 
 He_dict = temp_broad_param_dict('/home/toma/Desktop/linelists-database/PH3_He_broad.txt')
-
+'''
+H2_dict = temp_broad_param_dict('/home/toma/Desktop/12C-16O__H2.broad')
+He_dict = temp_broad_param_dict('/home/toma/Desktop/12C-16O__He.broad')
+'''
 ##########for CO braod param data only
 #J starts with 0
 #gamma_H2s, n_H2s = np.loadtxt('/home/toma/Desktop/12C-16O__H2.broad', usecols=(1, 2), unpack=True)
@@ -108,8 +112,11 @@ He_dict = temp_broad_param_dict('/home/toma/Desktop/linelists-database/PH3_He_br
 #J starts with 0
 #gamma_Hes, n_Hes = np.loadtxt('/home/toma/Desktop/12C-16O__He.broad', usecols=(1, 2), unpack=True)
 
+#def insert_exomol(start_line, end_line, outfile_name, infile, particle_id):
 def insert_exomol(start_line, end_line, outfile_name, infile, particle_id):
     upper_ids, lower_ids, As = np.loadtxt(itertools.islice(infile, start_line, end_line), usecols=(0, 1, 2), unpack=True)
+    #upper_ids, lower_ids, As = np.loadtxt(infile, usecols=(0, 1, 2), unpack=True)
+    print(len(upper_ids), 'lines : Loaded the parameters from the transition file')
     
     #file that the parameters are written into and import to mysql using LOAD DATA INFILE
     f = open(outfile_name, 'w') 
@@ -241,12 +248,11 @@ def insert_exomol(start_line, end_line, outfile_name, infile, particle_id):
     load_time = time.time()
     
     print("Bulk inserting exomol data...")
+
     
     cursor.execute("LOAD DATA LOCAL INFILE '/home/toma/Desktop/exomol.txt' INTO TABLE transitions FIELDS TERMINATED BY ' ' LINES TERMINATED BY '\n' \
               (@col1, @col2, @col3, @col4, @col5, @col6, @col7, @col8) SET nu=@col1, A=@col2, elower=@col3, g_upper=@col4, \
               gamma_H2=@col5, n_H2=@col6, gamma_He=@col7, n_He=@col8, line_source='EXOMOL_Li2015', particle_id={};".format(particle_id))
-    
-    db.commit()
     
     print('Executed {} lines of exomol data'.format(counter))
     print("Bulk inserted exomol data in %s seconds" % (time.time() - load_time))    
@@ -259,39 +265,52 @@ counter = 0
 #length_trans = sum(1 for line in open('/home/toma/Desktop/12C-16O__Li2015.trans'))
 
 #with open('/home/toma/Desktop/12C-16O__Li2015.trans') as trans: #for CO
-for file_num in range(1, 101):
+for file_num in range(1, 2):
     curr_file = '/home/toma/Desktop/linelists-database/PH3_trans_{}'.format(file_num)
+    #curr_file = '/home/toma/Desktop/12C-16O__Li2015.trans'
     
     #get the number of lines in trans file
     length_trans = sum(1 for line in open(curr_file))
-    print(length_trans)
+    print(length_trans, 'lines : Opened the transition file')
+    
+    #sql_order('ALTER TABLE transitions AUTO_INCREMENT = 1') #this can be used to solve auto_increment problems as well
     
     with open(curr_file) as trans:
+        #for spliiting file into smalller chunks...but mysql auto_increment seems to not be working properly
         start_line = 0
-        max_size = 1e6 
-        while length_trans >= start_line + max_size:
+        max_size = 1e7
+        
+        repeat = 0
+        while length_trans >= start_line + max_size: 
             
             insert_exomol(start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt', trans, particle_id)
             
-            #start_line += 1e5
             #islice removes starts from the next line after the last read line
             length_trans -= max_size
-            int(print(length_trans))
+            print(int(length_trans))
+            repeat += 1
         
-    
         #out of the while loop when difference between start_line and the max lines in trans file is less than 1e6
         insert_exomol(start_line, int(length_trans), '/home/toma/Desktop/exomol.txt', trans, particle_id)
         
-        print('Finished loading {} with {} lines of data'.format(curr_file, int(length_trans)))
-    
+        #insert_exomol('/home/toma/Desktop/exomol.txt', trans, particle_id)
+    #commit one file altogether at one time    
+    db.commit()
     trans.close()
-
+    
+    print('Finished loading {} with {} lines of data'.format(curr_file, int(length_trans + repeat * max_size)))
+    #print('Finished loading {} with {} lines of data'.format(curr_file, int(length_trans)))
+    
+    
+    #set @id:=0; update mytable set id = (@id := @id + 1) order by id; for correcting auto_increment if needed
+    
 ###################
 
 #turn them back on
 
 sql_order('SET unique_checks = 1')
 sql_order('SET foreign_key_checks = 1')
+sql_order('SET sql_log_bin = 1')
 
 cursor.close()
 db.close()

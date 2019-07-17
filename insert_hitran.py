@@ -30,6 +30,7 @@ def insert_hitran(filename, particle_id):
     sql_order('SET autocommit = 0')
     sql_order('SET unique_checks = 0')
     sql_order('SET foreign_key_checks = 0')
+    sql_order('SET sql_log_bin = 0')
     
     #insert the data of all lines for CO into table lines
     # with open('CO(copy).out') as infile: #
@@ -85,6 +86,7 @@ def insert_hitran(filename, particle_id):
         #turn it back on
         sql_order('SET unique_checks = 1')
         sql_order('SET foreign_key_checks = 1')
+        sql_order('SET sql_log_bin = 1')
         
         print('Executed {} lines of hitran data'.format(counter))
         

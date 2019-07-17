@@ -36,7 +36,7 @@ VARCHAR(25) NOT NULL, particle_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY K
 transitions_table_create_query = "CREATE TABLE IF NOT EXISTS transitions (nu DOUBLE NOT NULL, A FLOAT NOT NULL, \
 gamma_air FLOAT, n_air FLOAT, delta_air FLOAT, elower DOUBLE NOT NULL, g_upper SMALLINT NOT NULL, gamma_H2 FLOAT, \
 n_H2 FLOAT, delta_H2 FLOAT, gamma_He FLOAT, n_He FLOAT, delta_He FLOAT, line_source VARCHAR(25) NOT NULL, \
-particle_id INT UNSIGNED NOT NULL, line_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY transitions(particle_id) \
+particle_id INT UNSIGNED NOT NULL, line_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY transitions(particle_id) \
 REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE) ROW_FORMAT=COMPRESSED;"
 
 #create table for the partition coefficient across all temperatures for each particle in table 1
@@ -83,8 +83,8 @@ def main():
     sql_order(particles_table_create_query)
     sql_order(transitions_table_create_query)
     sql_order(partitions_table_create_query)
-    sql_order(states_table_create_query)
-    sql_order(broad_params_table_create_query)
+    #sql_order(states_table_create_query)
+    #sql_order(broad_params_table_create_query)
     
     # sql_order(source_properties_table_create_query) ######create this table when the database is entirely populated
     
