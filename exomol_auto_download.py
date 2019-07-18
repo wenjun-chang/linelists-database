@@ -75,29 +75,26 @@ def get_molecule_links():
                         #i dont understand....
             ######################    
             '''
+            suffixes = get_trans_files(href, mol_name)
             
-            
-            suffixes, file_num, DEFAULT_GAMMA, DEFAULT_N = get_trans_files(href, mol_name)
-            #using range (1, file_num + 1)
-            
-            #use exomol_import file to import the data
-            for i in range(len(suffixes)): #suffixes[i] = [iso_name, version_name]
+            #use exomol_import file to import data into the database
+            for i in range(len(suffixes)): #suffixes[i] = [iso_name, (version_name, trans_file_num, DEFAULT_GAMMA, DEFAULT_N)]
                 iso_name = suffixes[i][0]
-                version_name = suffixes[i][1]
+                versions_and_file_nums_and_default = suffixes[i][1]
+                version_name, trans_file_num, DEFAULT_GAMMA, DEFAULT_N = versions_and_file_nums_and_default
                 
-                states_filepath = '/home/toma/Desktop/linelists-database/' + molecule_name + '_states_' + iso_name + '_' + version_name
-                partitions_filepath = '/home/toma/Desktop/linelists-database/' + molecule_name + '_partitions_' + iso_name + '_' + version_name
-                trans_filepath_without_file_number = '/home/toma/Desktop/linelists-database/' + molecule_name + '_trans_' + iso_name + '_' + version_name + '_'
+                states_filepath = '/home/toma/Desktop/linelists-database/' + mol_name + '_states_' + iso_name + '_' + version_name
+                partitions_filepath = '/home/toma/Desktop/linelists-database/' + mol_name + '_partitions_' + iso_name + '_' + version_name
+                trans_filepath_without_file_number = '/home/toma/Desktop/linelists-database/' + mol_name + '_trans_' + iso_name + '_' + version_name + '_'
                 
-                import_exomol_data()
-                import_exomol_data(mol_name, iso_name, version_name, trans, states, partitions, \
-                                   broad_H2=None, broad_He=None, DEFAULT_GAMMA, DEFAULT_N)
+                exomol_import.import_exomol_data(mol_name, iso_name, version_name, trans_filepath_without_file_number, \
+                                                 states_filepath, partitions_filepath, broad_H2_filepath, broad_He_filepath, \
+                                                 DEFAULT_GAMMA, DEFAULT_N, trans_file_num)
             
         
 #helper for getting trans files thx stackoverflow
 def has_href_and_title_but_no_class(tag):
-    return tag.has_attr('href') and tag.has_attr('title') and not tag.has_attr('class')
-    
+    return tag.has_attr('href') and tag.has_attr('title') and not tag.has_attr('class') 
 
 def get_trans_files(molecule_url, molecule_name):
     suffixes = []
@@ -110,7 +107,7 @@ def get_trans_files(molecule_url, molecule_name):
     ###at the main page for that molecule listing all isotopologues
     for link in soup.find_all('a', attrs={'class': 'list-group-item link-list-group-item'}):
         #print(link)
-        versions= []
+        versions_and_file_nums_and_default = []
         iso_name = ''
         atoms = link.get('href').split('-')
         for atom in atoms:
@@ -154,12 +151,11 @@ def get_trans_files(molecule_url, molecule_name):
                     
                 if False in [has_states, has_trans]:
                     #skip this loop--don't download since there are insufficient file types
-                    continue
-                
-                #append the fucntioning version to returning output 
-                versions.append(version_name)
+                    continue                
                 
                 file_num = 0
+                DEFAULT_GAMMA = None
+                DEFAULT_N = None
                 #ideally at the main page for each source for each isotopologues
                 #download all the trans, states, and partitions file
                 for link in soup.find_all(has_href_and_title_but_no_class):
@@ -182,10 +178,8 @@ def get_trans_files(molecule_url, molecule_name):
                                     data = line.strip().split()
                                     if 'Default' in data: 
                                         if 'Lorentzian' in data:                 
-                                            global DEFAULT_GAMMA
                                             DEFAULT_GAMMA = float(data[0])
                                         else:
-                                            global DEFAULT_N
                                             DEFAULT_N = float(data[0])
                             def_file.close()
                             #delete def file cuz no longer needed
@@ -218,7 +212,10 @@ def get_trans_files(molecule_url, molecule_name):
                     states_filepath = '/home/toma/Desktop/linelists-database/' + molecule_name + '_states_' + iso_name + '_' + version_name
                     partition_filepath = '/home/toma/Desktop/linelists-database/' + molecule_name + '_partitions_' + iso_name + '_' + version_name
                     #this fucntion will calculate partition and save it to the same filepath as if the partition file exists
-                    partition_calculator.calculate_partition(states_filepath, partition_filepath, 5000)
+                    partition_calculator.calculate_partition(states_filepath, partition_filepath, 10000)
+                
+                #append the fucntioning version and number of trans files to returning output 
+                versions_and_file_nums_and_default.append((version_name, file_num, DEFAULT_GAMMA, DEFAULT_N))
             
         '''
         #if number of partition files does not match number of useful version available
@@ -231,13 +228,13 @@ def get_trans_files(molecule_url, molecule_name):
                 if iso_name in filename:
                     os.remove('/home/toma/Desktop/linelists-database/' + filename)
         '''
-            
         #if not at least one of parition, states, and trans file is existing then delete all
         #if only one partition file, chnage partition filename to general name
-
+        
+        versions = [i[0] for i in versions_and_file_nums_and_default]
         print('version for', iso_name, 'includes', *versions)
-        suffixes.append([iso_name, version_name])
-    return suffixes, file_num, DEFAULT_GAMMA, DEFAULT_N #use this for full automation connect to exomol_import
+        suffixes.append([iso_name, versions_and_file_nums_and_default])
+    return suffixes #use this for full automation connect to exomol_import
         
 #fine
 #if no broad maybe go into get trans and find the header??
