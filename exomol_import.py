@@ -28,10 +28,11 @@ particle_id = 93 # for PH3
 ####################
 
 #insert partition file
-def insert_partitions(partitions_filepath, particle_id): 
+def insert_partitions(partitions_filepath, version_name, particle_id): 
     Ts, partition_functions = np.loadtxt(partitions_filepath, usecols=(0, 1), unpack=True)
     partition_data = [] 
-    query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, particle_id, partition_id) VALUES(%s, %s, {}, null)".format(particle_id)
+    query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, line_source, particle_id, \
+    partition_id) VALUES(%s, %s, {}, {}, null)".format(version_name, particle_id)
     
     counter = 0
     for j in range(len(partition_functions)):
@@ -204,7 +205,7 @@ sql_order('SET sql_log_bin = 0')
     
 #for CO
 #insert_partitions('/home/toma/Desktop/12C-16O__Li2015_partition.pf', particle_id)
-insert_partitions('/home/toma/Desktop/linelists-database/PH3_partitions.txt', particle_id)
+insert_partitions('/home/toma/Desktop/linelists-database/PH3_partitions.txt', 'EXOMOL_Li2015', particle_id)
 
 ###################
 
@@ -318,7 +319,7 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     particle_id = data[0][0]
     
     #insert partitions
-    insert_partitions(partitions_fp, particle_id)
+    insert_partitions(partitions_fp, version_name, particle_id)
     
     #load states
     states_time = time.time()

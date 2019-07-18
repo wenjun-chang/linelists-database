@@ -41,19 +41,9 @@ REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE) ROW_FORMA
 
 #create table for the partition coefficient across all temperatures for each particle in table 1
 partitions_table_create_query = "CREATE TABLE IF NOT EXISTS partitions (temperature FLOAT NOT NULL, `partition` FLOAT NOT NULL, \
-particle_id INT UNSIGNED NOT NULL, partition_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY partitions(particle_id) \
-REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE);" 
-
-#create table states needed to store the states file of exomol data for each molecule
-#state_id is the exomol state_id, and id is the mysql primary key. 
-#what should the size of state_id be??? smallint or mediumint????????
-states_table_create_query = "CREATE TABLE IF NOT EXISTS states (state_id MEDIUMINT NOT NULL, E DOUBLE NOT NULL, \
-g SMALLINT NOT NULL, J SMALLINT NOT NULL, particle_id INT UNSIGNED NOT NULL, id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY);"
-
-#create table broad_params to store gamma, n, and delta for exomol data
-broad_params_table_create_query =  "CREATE TABLE IF NOT EXISTS broad_params \
-(J SMALLINT NOT NULL, gamma_H2 DOUBLE, n_H2 DOUBLE, gamma_He DOUBLE, n_He DOUBLE, \
-particle_id INT UNSIGNED NOT NULL, broad_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY);"
+line_source VARCHAR(25) NOT NULL, particle_id INT UNSIGNED NOT NULL, partition_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
+FOREIGN KEY partitions(particle_id) REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE), FOREIGN KEY \
+partitions(line_source) REFERENCES transitions(line_source) ON UPDATE CASCADE ON DELETE CASCADE);" 
 
 #create table source_properties to store the limits and availbility of the parameters for each source from HITRAN or EXOMOL
 source_properties_table_create_query = "CREATE TABLE IF NOT EXISTS source_properties (line_source VARCHAR(25) NOT NULL, \
@@ -83,8 +73,6 @@ def main():
     sql_order(particles_table_create_query)
     sql_order(transitions_table_create_query)
     sql_order(partitions_table_create_query)
-    #sql_order(states_table_create_query)
-    #sql_order(broad_params_table_create_query)
     
     # sql_order(source_properties_table_create_query) ######create this table when the database is entirely populated
     

@@ -45,15 +45,15 @@ G_TO_AMU = 1.66054e-24#1.66053904e-24
 #given input v(nu), T, p, iso, source, and version
 
 #fetch the partition function value given an input T, temperature
-def get_partition(T): #temp has to be a float i.g. 19.0
+def get_partition(T, version_name): #temp has to be a float i.g. 19.0
     
     #query for the partition function given T, temperature
-    query = "SELECT `partition` FROM partitions WHERE temperature = {}".format(T)
+    query = "SELECT `partition` FROM partitions WHERE temperature = {} AND line_source = {}".format(T, version_name)
     
     data = fetch(query)
     
     if len(data) != 1:
-        raise Exception('should have exactly one partition value given a specific T')
+        raise Exception('should have exactly one partition value given a specific T and line source')
         
     return data[0][0]
 
@@ -159,7 +159,7 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
 def compute_all(v, T, p, iso_name, line_source, default=False): 
     
     #get paritition using the correct function
-    Q = get_partition(T)
+    Q = get_partition(T, line_source)
     
     #get particle_id and iso_abundance using the correct function
     particle_data = get_particle(iso_name)
