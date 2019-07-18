@@ -43,9 +43,10 @@ mol_ids, iso_ids, iso_names, iso_abundances, iso_masses, mol_names = \
 np.loadtxt('/home/toma/Desktop/molecule_properties (copy).txt', dtype='str', skiprows=1, usecols=(1, 2, 3, 4, 5, 6), unpack=True)
 
 for i in range(len(mol_ids)):
+    version_name = 'HITRAN_2016'
     
     particle_property_query = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % (mol_names[i], iso_names[i], \
-                                                           iso_abundances[i], iso_masses[i], 'HITRAN_2016')
+                                                           iso_abundances[i], iso_masses[i], version_name)
     #insert each molecule's properties into particles table
     sql_order(particle_property_query)
     '''
@@ -59,7 +60,7 @@ for i in range(len(mol_ids)):
     #open the file and use insert_hitran.py to insert all parameters into transitions table
     filename = '/home/toma/Desktop/linelists-database/data/{}.data'.format(mol_names[i])
     
-    insert_hitran.insert_hitran(filename, i + 1)
+    insert_hitran.insert_hitran(filename, version_name, i + 1)
     
     #delete the files since the files are named by HAPI using mol_name instead of iso_name
     #s.t. python wont get confused in the for loop

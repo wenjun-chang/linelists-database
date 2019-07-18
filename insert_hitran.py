@@ -19,7 +19,7 @@ CO = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % ('CO'
 
 ##########################
 
-def insert_hitran(filename, particle_id): 
+def insert_hitran(filename, version_name, particle_id): 
     #connect to the database
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist')
     
@@ -77,7 +77,7 @@ def insert_hitran(filename, particle_id):
         cursor.execute("LOAD DATA LOCAL INFILE '/home/toma/Desktop/hitran.txt' INTO TABLE transitions FIELDS TERMINATED BY ' ' LINES TERMINATED BY '\n' \
                   (@col1, @col2, @col3, @col4, @col5, @col6, @col7, @col8, @col9, @col10, @col11, @col12, @col13) SET nu=@col1, A=@col2, gamma_air=@col3, \
                   n_air=@col4, delta_air=@col5, elower=@col6, g_upper=@col7, gamma_H2=@col8, n_H2=@col9, delta_H2=@col10, gamma_He=@col11, n_He=@col12, \
-                  delta_He=@col13, line_source='HITRAN_2016', particle_id={};".format(particle_id))
+                  delta_He=@col13, line_source= {}, particle_id={};".format(version_name, particle_id))
         
         #commit changes and close file
         db.commit()
@@ -110,7 +110,7 @@ def main():
     #PH3 = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % ('PH3', '(31P)(1H)3', 0.999533, 33.997238, 'EXOMOL_SAlTY')
     #sql_order(PH3)
     #insert the data of all lines for CO into table lines
-    insert_hitran('/home/toma/Desktop/co_test.out', 1)
+    insert_hitran('/home/toma/Desktop/co_test.out', 'HITRAN_2016', 1)
         
     print("Finished in %s seconds" % (time.time() - start_time))
     
