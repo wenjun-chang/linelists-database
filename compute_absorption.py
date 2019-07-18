@@ -45,10 +45,10 @@ G_TO_AMU = 1.66054e-24#1.66053904e-24
 #given input v(nu), T, p, iso, source, and version
 
 #fetch the partition function value given an input T, temperature
-def get_partition(T, version_name): #temp has to be a float i.g. 19.0
+def get_partition(T, version_name, particle_id): #temp has to be a float i.g. 19.0
     
     #query for the partition function given T, temperature
-    query = "SELECT `partition` FROM partitions WHERE temperature = {} AND line_source = {}".format(T, version_name)
+    query = "SELECT `partition` FROM partitions WHERE temperature = {} AND line_source = {} AND particle_id = {}".format(T, version_name, particle_id)
     
     data = fetch(query)
     
@@ -158,16 +158,21 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
 #use the parameters feteched to compute absorption cross section with the help of other functions
 def compute_all(v, T, p, iso_name, line_source, default=False): 
     
-    #get paritition using the correct function
-    Q = get_partition(T, line_source)
-    
     #get particle_id and iso_abundance using the correct function
     particle_data = get_particle(iso_name)
     particle_id = particle_data[0]
     iso_abundance = particle_data[1]
     iso_mass = particle_data[2]
 
-     #connect to the database
+    #get paritition using the correct function
+    if 'HITRAN' not in line_source: 
+        Q = get_partition(T, line_source, particle_id)
+    else: #if computing using hitran data
+        raise Exception('WAAAAAAAAAAAAA need to create the dictionary for best partition fucntion first')
+        #or just randomly choose a version
+        Q = fetch("SELECT `partition` FROM partitions WHERE temperature = {} AND particle_id = {}".format(T, particle_id))[0][0]
+        
+    #connect to the database
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
     #do put actual password when run
     
