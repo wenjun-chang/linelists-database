@@ -28,11 +28,11 @@ particle_id = 93 # for PH3
 ####################
 
 #insert partition file
-def insert_partitions(partitions_filepath, version_name, particle_id): 
+def insert_partitions(partitions_filepath, line_source_id, particle_id): 
     Ts, partition_functions = np.loadtxt(partitions_filepath, usecols=(0, 1), unpack=True)
     partition_data = [] 
-    query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, line_source, particle_id, \
-    partition_id) VALUES(%s, %s, {}, {}, null)".format(version_name, particle_id)
+    query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, line_source_id, particle_id, \
+    partition_id) VALUES(%s, %s, {}, {}, null)".format(line_source_id, particle_id)
     
     counter = 0
     for j in range(len(partition_functions)):
@@ -76,7 +76,8 @@ def temp_broad_param_dict(infile):
 
 ####################
 
-def insert_exomol(start_line, end_line, outfile_name, infile, version_name, particle_id, no_broadening_param=False):
+def insert_exomol(start_line, end_line, outfile_name, infile, line_source_id, particle_id, no_broadening_param=False):
+    
     upper_ids, lower_ids, As = np.loadtxt(itertools.islice(infile, start_line, end_line), usecols=(0, 1, 2), unpack=True)
     print(len(upper_ids), 'lines : Loaded the parameters from the transition file')
     
@@ -179,7 +180,7 @@ def insert_exomol(start_line, end_line, outfile_name, infile, version_name, part
 
     cursor.execute("LOAD DATA LOCAL INFILE '/home/toma/Desktop/exomol.txt' INTO TABLE transitions FIELDS TERMINATED BY ' ' LINES TERMINATED BY '\n' \
               (@col1, @col2, @col3, @col4, @col5, @col6, @col7, @col8) SET nu=@col1, A=@col2, elower=@col3, g_upper=@col4, \
-              gamma_H2=@col5, n_H2=@col6, gamma_He=@col7, n_He=@col8, line_source={}, particle_id={};".format(version_name, particle_id))
+              gamma_H2=@col5, n_H2=@col6, gamma_He=@col7, n_He=@col8, line_source_id={}, particle_id={};".format(line_source_id, particle_id))
     
     print('Executed {} lines of exomol data'.format(counter))
     print("Bulk inserted exomol data in %s seconds" % (time.time() - load_time))    
@@ -249,6 +250,7 @@ for file_num in range(1, 101):
         repeat = 0
         while length_trans >= start_line + max_size: 
             
+            #need to change exomol_Li2015 into line_source_id next time running !!!!!!!!!!!!!
             insert_exomol(start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt', trans, 'EXOMOL_Li2015', particle_id)
             
             #islice removes starts from the next line after the last read line
@@ -291,12 +293,16 @@ print("Finished in %s seconds" % (time.time() - start_time))
 
 #fp stands for filepath
 def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, partitions_fp, \
-                       broad_H2_fp=None, broad_He_fp=None, DEFAULT_GAMMA, DEFAULT_N, trans_file_num):
+                       broad_H2_fp=None, broad_He_fp=None, DEFAULT_GAMMA, DEFAULT_N, trans_file_num, reference_link):
+    
+    ###################
+    
     global DEFAULT_GAMMA, DEFAULT_N
     DEFAULT_GAMMA = DEFAULT_GAMMA
     DEFAULT_N = DEFAULT_N   
     if DEFAULT_GAMMA is None or DEFAULT_N is None: 
-        raise Exception('DEFAULT_GAMMA or DEFAULT_N should not be null')        
+        raise Exception('DEFAULT_GAMMA or DEFAULT_N should not be null')
+        
     ###################
     
     one_iso_time = time.time()  
@@ -308,8 +314,43 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     sql_order('SET autocommit = 0')
     sql_order('SET unique_checks = 0')
     sql_order('SET foreign_key_checks = 0')
-    sql_order('SET sql_log_bin = 0')    
+    sql_order('SET sql_log_bin = 0')
+    
     ##################
+    
+    #load H2/He params and in the mean while
+    #insert the line_source into source_properties and get line_source_id
+    if broad_H2_fp is None and broad_He_fp is None: #when no .broad files in exomol
+        no_broadening_param = True
+        
+        insert_version_query = "INSERT INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
+        bool_H2, bool_He, reference_link, line_source_id) VALUES('%s', null, null, null, 'NO', 'NO', 'NO', '%s', null);" % \
+        (version_name, reference_link)
+        
+    elif broad_H2_fp is not None and broad_He_fp is not None: #when both H2 and He .broad files in exomol
+        no_broadening_param = False
+        H2_dict = temp_broad_param_dict(broad_H2_fp)
+        He_dict = temp_broad_param_dict(broad_He_fp)
+        
+        insert_version_query = "INSERT INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
+        bool_H2, bool_He, reference_link, line_source_id) VALUES('%s', null, null, null, 'NO', 'YES', 'YES', '%s', null);" % \
+        (version_name, reference_link)
+        
+    else: 
+        raise Exception('Should have either neither or both of the H2 and He broad param files')
+        
+    sql_order(insert_version_query)
+    
+    get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}'".format(version_name)
+    
+    data = fetch(get_line_source_id_query)
+
+    if len(data) != 1:
+        raise Exception('should have exactly one line_source_id corresponding to one line_source')
+        
+    line_source_id = data[0][0]
+    
+    #####################
     
     #get particle_id
     get_particle_id = "SELECT particle_id FROM particles WHERE iso_name = '{}'".format(iso_name)
@@ -319,7 +360,7 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     particle_id = data[0][0]
     
     #insert partitions
-    insert_partitions(partitions_fp, version_name, particle_id)
+    insert_partitions(partitions_fp, line_source_id, particle_id)
     
     #load states
     states_time = time.time()
@@ -329,15 +370,7 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 6), unpack=True)
     print('Finished loading states file in %s seconds' % (time.time() - states_time))
     
-    #load H2/He params
-    if broad_H2_fp is None and broad_He_fp is None: #when no .broad files in exomol
-        no_broadening_param = True
-    elif broad_H2_fp is not None and broad_He_fp is not None: #when both H2 and He .broad files in exomol
-        no_broadening_param = False
-        H2_dict = temp_broad_param_dict(broad_H2_fp)
-        He_dict = temp_broad_param_dict(broad_He_fp)
-    else: 
-        raise Exception('Should have either neither or both of the H2 and He broad param files')
+    ######################
     
     #insert transition files
     global counter
@@ -358,14 +391,14 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
             repeat = 0
             
             while length_trans >= start_line + max_size: 
-                insert_exomol(start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt', trans, version_name, particle_id, no_broadening_param)
+                insert_exomol(start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt', trans, line_source_id, particle_id, no_broadening_param)
                 #islice starts from the next line after the last read line
                 length_trans -= max_size
                 #print(int(length_trans))
                 repeat += 1
             
             #out of the while loop when difference between start_line and the max lines in trans file is less than max_size
-            insert_exomol(start_line, int(length_trans), '/home/toma/Desktop/exomol.txt', trans, version_name, particle_id, no_broadening_param)
+            insert_exomol(start_line, int(length_trans), '/home/toma/Desktop/exomol.txt', trans, line_source_id, particle_id, no_broadening_param)
             
         #commit one file altogether at one time
         db.commit()

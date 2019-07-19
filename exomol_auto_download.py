@@ -80,8 +80,8 @@ def get_molecule_links():
             #use exomol_import file to import data into the database
             for i in range(len(suffixes)): #suffixes[i] = [iso_name, (version_name, trans_file_num, DEFAULT_GAMMA, DEFAULT_N)]
                 iso_name = suffixes[i][0]
-                versions_and_file_nums_and_default = suffixes[i][1]
-                version_name, trans_file_num, DEFAULT_GAMMA, DEFAULT_N = versions_and_file_nums_and_default
+                versions_and_file_nums_and_default_and_ref_links = suffixes[i][1]
+                version_name, trans_file_num, DEFAULT_GAMMA, DEFAULT_N, ref_links = versions_and_file_nums_and_default_and_ref_links
                 
                 states_filepath = '/home/toma/Desktop/linelists-database/' + mol_name + '_states_' + iso_name + '_' + version_name
                 partitions_filepath = '/home/toma/Desktop/linelists-database/' + mol_name + '_partitions_' + iso_name + '_' + version_name
@@ -89,7 +89,7 @@ def get_molecule_links():
                 
                 exomol_import.import_exomol_data(mol_name, iso_name, version_name, trans_filepath_without_file_number, \
                                                  states_filepath, partitions_filepath, broad_H2_filepath, broad_He_filepath, \
-                                                 DEFAULT_GAMMA, DEFAULT_N, trans_file_num)
+                                                 DEFAULT_GAMMA, DEFAULT_N, trans_file_num, ref_links)
             
         
 #helper for getting trans files thx stackoverflow
@@ -107,7 +107,7 @@ def get_trans_files(molecule_url, molecule_name):
     ###at the main page for that molecule listing all isotopologues
     for link in soup.find_all('a', attrs={'class': 'list-group-item link-list-group-item'}):
         #print(link)
-        versions_and_file_nums_and_default = []
+        versions_and_file_nums_and_default_and_ref_links = []
         iso_name = ''
         atoms = link.get('href').split('-')
         for atom in atoms:
@@ -214,8 +214,27 @@ def get_trans_files(molecule_url, molecule_name):
                     #this fucntion will calculate partition and save it to the same filepath as if the partition file exists
                     partition_calculator.calculate_partition(states_filepath, partition_filepath, 10000)
                 
+                #find the link to the reference paper...now just fetch all the links
+                #still dont know how to handle this
+                #:::<span class="noprint"> [<a href="http://dx.doi.org/10.1093/mnras/stu2246">link to article</a>]</span>
+                #reference links will be separated by ||
+                #i.e. link1 || link2 ||...||linkn-1||linkn
+                ref_links = ''
+                seen = []
+                for link in soup.find_all('span', attrs={'class': 'noprint'}):
+                    if link is not None:
+                        link = str(link)
+                        link = link[link.find('[') + 1 : link.find(']')]
+                        link = link[link.find('"') + 1 :]
+                        link = link[: link.find('"')]
+                        if link not in seen: 
+                            seen.append(link)
+                for link in seen: 
+                    ref_links += '%s||' % link
+                ref_links = ref_links[:-2]
+                
                 #append the fucntioning version and number of trans files to returning output 
-                versions_and_file_nums_and_default.append((version_name, file_num, DEFAULT_GAMMA, DEFAULT_N))
+                versions_and_file_nums_and_default_and_ref_links.append((version_name, file_num, DEFAULT_GAMMA, DEFAULT_N, ref_links))
             
         '''
         #if number of partition files does not match number of useful version available
@@ -231,9 +250,9 @@ def get_trans_files(molecule_url, molecule_name):
         #if not at least one of parition, states, and trans file is existing then delete all
         #if only one partition file, chnage partition filename to general name
         
-        versions = [i[0] for i in versions_and_file_nums_and_default]
+        versions = [i[0] for i in versions_and_file_nums_and_default_and_ref_links]
         print('version for', iso_name, 'includes', *versions)
-        suffixes.append([iso_name, versions_and_file_nums_and_default])
+        suffixes.append([iso_name, versions_and_file_nums_and_default_and_ref_links])
     return suffixes #use this for full automation connect to exomol_import
         
 #fine

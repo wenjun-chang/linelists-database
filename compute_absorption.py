@@ -45,10 +45,10 @@ G_TO_AMU = 1.66054e-24#1.66053904e-24
 #given input v(nu), T, p, iso, source, and version
 
 #fetch the partition function value given an input T, temperature
-def get_partition(T, version_name, particle_id): #temp has to be a float i.g. 19.0
+def get_partition(T, line_source_id, particle_id): #temp has to be a float i.g. 19.0
     
     #query for the partition function given T, temperature
-    query = "SELECT `partition` FROM partitions WHERE temperature = {} AND line_source = {} AND particle_id = {}".format(T, version_name, particle_id)
+    query = "SELECT `partition` FROM partitions WHERE temperature = {} AND line_source_id = '{}' AND particle_id = {}".format(T, line_source_id, particle_id)
     
     data = fetch(query)
     
@@ -156,7 +156,7 @@ def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
     
 #given input v, T, p, iso_name, source, and version, fetch all the line data of the input iso_name
 #use the parameters feteched to compute absorption cross section with the help of other functions
-def compute_all(v, T, p, iso_name, line_source, default=False): 
+def compute_all(v, T, p, iso_name, line_source='default'): 
     
     #get particle_id and iso_abundance using the correct function
     particle_data = get_particle(iso_name)
@@ -166,11 +166,18 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
 
     #get paritition using the correct function
     if 'HITRAN' not in line_source: 
-        Q = get_partition(T, line_source, particle_id)
+        
+        get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}'".format(line_source)
+        data = fetch(get_line_source_id_query)
+        if len(data) != 1:
+            raise Exception('should have exactly one line_source_id corresponding to one line_source')   
+        line_source_id = data[0][0]
+        
+        Q = get_partition(T, line_source_id, particle_id)
     else: #if computing using hitran data
         raise Exception('WAAAAAAAAAAAAA need to create the dictionary for best partition fucntion first')
         #or just randomly choose a version
-        Q = fetch("SELECT `partition` FROM partitions WHERE temperature = {} AND particle_id = {}".format(T, particle_id))[0][0]
+        #Q = fetch("SELECT `partition` FROM partitions WHERE temperature = {} AND particle_id = {}".format(T, particle_id))[0][0]
         
     #connect to the database
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
@@ -179,17 +186,17 @@ def compute_all(v, T, p, iso_name, line_source, default=False):
     #create a cursor object
     cursor = db.cursor()
     
-    if default == True: 
+    if line_source == 'default': 
         #use this query for getting the lines of default line source
         query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, \
-        delta_He FROM transitions INNER JOIN particles ON particles.default_line_source = transitions.line_source \
+        delta_He FROM transitions INNER JOIN particles ON particles.default_line_source_id = transitions.line_source_id \
         WHERE particles.particle_id = {};".format(particle_id)
     
     else:
         #query for all the lines of the3.7729922865792e-27 specified isotopologue from the user given nu, line_source
         query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, \
         n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
-        line_source = '{}'".format(particle_id, line_source)
+        line_source_id = '{}'".format(particle_id, line_source_id)
     
     print(query)
     
@@ -284,10 +291,7 @@ def main():
             T = float(input('At what temperature (K) Sir? \n'))
             p = float(input('At what pressure (atm) Sir? \n'))
             
-            if line_source == 'default':
-                output = compute_all(v, T, p, isotopologue, line_source, True)
-            else: 
-                output = compute_all(v, T, p, isotopologue, line_source)
+            output = compute_all(v, T, p, isotopologue, line_source)
             print('The absorption cross section for {} in {} at {}, {}, {} is {} \n'.format(isotopologue, line_source, v, T, p, output))
             toma = input('Do you want to obtain another absorption cross section data, Sir? \nEnter: Y or n \n')
         elif toma.lower() == 'n':

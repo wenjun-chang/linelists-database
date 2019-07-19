@@ -22,12 +22,12 @@ def create_database():
     cursor.close()
     db.close()
 
-################
-        
+##################
+
 #molecule_name format for example, CO2, is (13C)(16O)2
 particles_table_create_query = "CREATE TABLE IF NOT EXISTS particles (molecule_name VARCHAR(5) NOT NULL, \
-iso_name VARCHAR(25) NOT NULL, iso_abundance DOUBLE NOT NULL, iso_mass DOUBLE NOT NULL, default_line_source \
-VARCHAR(25) NOT NULL, particle_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY); "
+iso_name VARCHAR(25) NOT NULL, iso_abundance DOUBLE NOT NULL, iso_mass DOUBLE NOT NULL, default_line_source_id \
+SMALLINT NOT NULL, particle_id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY); "
 
 #create table for all the lines for each particle in table particles
 #nu stands for transition wavenumber
@@ -35,22 +35,22 @@ VARCHAR(25) NOT NULL, particle_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY K
 #g_upper stands for the degeneracy of the uppper state
 transitions_table_create_query = "CREATE TABLE IF NOT EXISTS transitions (nu DOUBLE NOT NULL, A FLOAT NOT NULL, \
 gamma_air FLOAT, n_air FLOAT, delta_air FLOAT, elower DOUBLE NOT NULL, g_upper SMALLINT NOT NULL, gamma_H2 FLOAT, \
-n_H2 FLOAT, delta_H2 FLOAT, gamma_He FLOAT, n_He FLOAT, delta_He FLOAT, line_source VARCHAR(25) NOT NULL, \
-particle_id INT UNSIGNED NOT NULL, line_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY transitions(particle_id) \
-REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE) ROW_FORMAT=COMPRESSED;"
+n_H2 FLOAT, delta_H2 FLOAT, gamma_He FLOAT, n_He FLOAT, delta_He FLOAT, line_source_id SMALLINT NOT NULL, \
+particle_id SMALLINT UNSIGNED NOT NULL, line_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY transitions(particle_id) \
+REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE, FOREIGN KEY transitions(line_source_id) REFERENCES \
+source_properties(line_source_id) ON UPDATE CASCADE ON DELETE CASCADE) ROW_FORMAT=COMPRESSED;"
 
 #create table for the partition coefficient across all temperatures for each particle in table 1
 partitions_table_create_query = "CREATE TABLE IF NOT EXISTS partitions (temperature FLOAT NOT NULL, `partition` FLOAT NOT NULL, \
-line_source VARCHAR(25) NOT NULL, particle_id INT UNSIGNED NOT NULL, partition_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
-FOREIGN KEY partitions(particle_id) REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE), FOREIGN KEY \
-partitions(line_source) REFERENCES transitions(line_source) ON UPDATE CASCADE ON DELETE CASCADE);" 
+line_source_id SMALLINT NOT NULL, particle_id SMALLINT UNSIGNED NOT NULL, partition_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
+FOREIGN KEY partitions(particle_id) REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE, FOREIGN KEY \
+partitions(line_source_id) REFERENCES source_properties(line_source_id) ON UPDATE CASCADE ON DELETE CASCADE);" 
 
 #create table source_properties to store the limits and availbility of the parameters for each source from HITRAN or EXOMOL
 source_properties_table_create_query = "CREATE TABLE IF NOT EXISTS source_properties (line_source VARCHAR(25) NOT NULL, \
-max_temperature SMALLINT NOT NULL#do i need this since assuming one pf for one isotopologue, max_nu DOUBLE NOT NULL, \
-num_lines BIGINT NOT NULL, bool_air ENUM('YES', 'NO') NOT NULL, bool_H2 ENUM('YES', 'NO') NOT NULL, bool_He ENUM('YES', 'NO') NOT NULL, \
-reference_paper VARCHAR(100) NOT NULL, source_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY \
-source_properties(line_source) REFERENCES transitions(line_source) ON UPDATE CASCADE ON DELETE CASCADE);"
+max_temperature SMALLINT, max_nu DOUBLE, num_lines BIGINT, bool_air ENUM('YES', 'NO'), \
+bool_H2 ENUM('YES', 'NO'), bool_He ENUM('YES', 'NO'), reference_link VARCHAR(250) NOT NULL, \
+line_source_id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY);"
 
 ##################
 
@@ -65,7 +65,7 @@ create_index_elower = "CREATE INDEX elower_index ON transitions(elower) USING BT
 def main():
     
     start_time = time.time()
-    
+    '''
     #create the database first and drop it if it exists already
     create_database()
     
@@ -75,14 +75,22 @@ def main():
     sql_order(partitions_table_create_query)
     
     # sql_order(source_properties_table_create_query) ######create this table when the database is entirely populated
-    
+    '''
     '''
     #create the indexes in table transitions
-    #index significance: line_source > nu > A > elower
-    sql_order(create_index_line_source)
+    #index significance: line_source_id > nu > A > elower
+    #t1 = time.time()
+    #sql_order(create_index_line_source_id)
+    #print("Finished line source id index in %s seconds" % (time.time() - t1))
+    t2 = time.time()
     sql_order(create_index_nu)
+    print("Finished nu index in %s seconds" % (time.time() - t2))
+    t3 = time.time()
     sql_order(create_index_A)
+    print("Finished A index in %s seconds" % (time.time() - t3))
+    t4 = time.time()
     sql_order(create_index_elower)
+    print("Finished elower index in %s seconds" % (time.time() - t4))
     '''
    
     print("Finished in %s seconds" % (time.time() - start_time))

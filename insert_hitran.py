@@ -9,17 +9,17 @@ Created on Thu Jun 20 13:13:51 2019
 #this code imports hitran data into the database
 
 import MySQLdb
-from query_functions import sql_order
+from query_functions import sql_order, fetch
 import time
 
 ###############
 
 #insert CO data into table particle
-CO = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % ('CO', '(12C)(16O)', 0.986544, 27.994915, 'HITRAN_2016')
+CO = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % ('CO', '(12C)(16O)', 0.986544, 27.994915, 1)
 
 ##########################
 
-def insert_hitran(filename, version_name, particle_id): 
+def insert_hitran(filename, version_name, particle_id, reference_link): 
     #connect to the database
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist')
     
@@ -32,10 +32,26 @@ def insert_hitran(filename, version_name, particle_id):
     sql_order('SET foreign_key_checks = 0')
     sql_order('SET sql_log_bin = 0')
     
+    #insert the line_source into source_properties and get line_source_id
+    insert_version_query = "INSERT INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
+    bool_H2, bool_He, reference_link, line_source_id) VALUES('%s', null, null, null, 'YES', 'YES', 'YES', '%s', null);" % \
+    (version_name, reference_link)
+        
+    sql_order(insert_version_query)
+    
+    get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}'".format(version_name)
+    
+    data = fetch(get_line_source_id_query)
+
+    if len(data) != 1:
+        raise Exception('should have exactly one line_source_id corresponding to one line_source')
+        
+    line_source_id = data[0][0]
+    
     #insert the data of all lines for CO into table lines
     # with open('CO(copy).out') as infile: #
     try:
-        
+
         #file that the parameters are written into and import to mysql using LOAD DATA INFILE
         f = open('/home/toma/Desktop/hitran.txt', 'w') 
         
@@ -54,7 +70,7 @@ def insert_hitran(filename, version_name, particle_id):
                 if data[i] == '#':
                     data[i] = '\\N'
             #line table arrangement corresponding to tuple indexes: 
-            #(nu, a, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source, particle_id, line_id)
+            #(nu, a, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source_id, particle_id, line_id)
             #( 0, 1,      2,       3,       4,        5,    6,    7,       8,      9,       10,      11,    12,        13,         14,         15  )
             
             #make sure at least one gamma and one n value is not null
@@ -77,7 +93,7 @@ def insert_hitran(filename, version_name, particle_id):
         cursor.execute("LOAD DATA LOCAL INFILE '/home/toma/Desktop/hitran.txt' INTO TABLE transitions FIELDS TERMINATED BY ' ' LINES TERMINATED BY '\n' \
                   (@col1, @col2, @col3, @col4, @col5, @col6, @col7, @col8, @col9, @col10, @col11, @col12, @col13) SET nu=@col1, A=@col2, gamma_air=@col3, \
                   n_air=@col4, delta_air=@col5, elower=@col6, g_upper=@col7, gamma_H2=@col8, n_H2=@col9, delta_H2=@col10, gamma_He=@col11, n_He=@col12, \
-                  delta_He=@col13, line_source= {}, particle_id={};".format(version_name, particle_id))
+                  delta_He=@col13, line_source_id={}, particle_id={};".format(line_source_id, particle_id))
         
         #commit changes and close file
         db.commit()
@@ -110,7 +126,7 @@ def main():
     #PH3 = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % ('PH3', '(31P)(1H)3', 0.999533, 33.997238, 'EXOMOL_SAlTY')
     #sql_order(PH3)
     #insert the data of all lines for CO into table lines
-    insert_hitran('/home/toma/Desktop/co_test.out', 'HITRAN_2016', 1)
+    insert_hitran('/home/toma/Desktop/co_test.out', 'HITRAN_2016', 1, r'https://www.sciencedirect.com/science/article/pii/S0022407317301073?via%3Dihub')
         
     print("Finished in %s seconds" % (time.time() - start_time))
     
