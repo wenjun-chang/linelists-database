@@ -33,18 +33,37 @@ SMALLINT NOT NULL, particle_id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY
 #nu stands for transition wavenumber
 #a stands for einstein coefficient
 #g_upper stands for the degeneracy of the uppper state
-transitions_table_create_query = "CREATE TABLE IF NOT EXISTS transitions (nu DOUBLE NOT NULL, A FLOAT NOT NULL, \
-gamma_air FLOAT, n_air FLOAT, delta_air FLOAT, elower DOUBLE NOT NULL, g_upper SMALLINT NOT NULL, gamma_H2 FLOAT, \
-n_H2 FLOAT, delta_H2 FLOAT, gamma_He FLOAT, n_He FLOAT, delta_He FLOAT, line_source_id SMALLINT NOT NULL, \
-particle_id SMALLINT UNSIGNED NOT NULL, line_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, FOREIGN KEY transitions(particle_id) \
-REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE, FOREIGN KEY transitions(line_source_id) REFERENCES \
-source_properties(line_source_id) ON UPDATE CASCADE ON DELETE CASCADE) ROW_FORMAT=COMPRESSED;"
+transitions_table_create_query = \
+"CREATE TABLE IF NOT EXISTS transitions (\
+nu DOUBLE NOT NULL, A FLOAT NOT NULL, \
+gamma_air FLOAT, \
+n_air FLOAT, \
+delta_air FLOAT, \
+elower DOUBLE NOT NULL, \
+g_upper SMALLINT NOT NULL, \
+gamma_H2 FLOAT, \
+n_H2 FLOAT, \
+delta_H2 FLOAT, \
+gamma_He FLOAT, \
+n_He FLOAT, \
+delta_He FLOAT, \
+line_source_id SMALLINT UNSIGNED NOT NULL, \
+particle_id SMALLINT UNSIGNED NOT NULL, \
+line_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
+FOREIGN KEY (particle_id) REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE, \
+FOREIGN KEY (line_source_id) REFERENCES source_properties(line_source_id) ON UPDATE CASCADE ON DELETE CASCADE\
+)ROW_FORMAT=COMPRESSED;"
 
 #create table for the partition coefficient across all temperatures for each particle in table 1
-partitions_table_create_query = "CREATE TABLE IF NOT EXISTS partitions (temperature FLOAT NOT NULL, `partition` FLOAT NOT NULL, \
-line_source_id SMALLINT NOT NULL, particle_id SMALLINT UNSIGNED NOT NULL, partition_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
-FOREIGN KEY partitions(particle_id) REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE, FOREIGN KEY \
-partitions(line_source_id) REFERENCES source_properties(line_source_id) ON UPDATE CASCADE ON DELETE CASCADE);" 
+partitions_table_create_query = \
+"CREATE TABLE IF NOT EXISTS partitions (\
+temperature FLOAT NOT NULL, \
+`partition` FLOAT NOT NULL, \
+line_source_id SMALLINT UNSIGNED NOT NULL, \
+particle_id SMALLINT UNSIGNED NOT NULL, \
+partition_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
+FOREIGN KEY (particle_id) REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE, \
+FOREIGN KEY (line_source_id) REFERENCES source_properties(line_source_id) ON UPDATE CASCADE ON DELETE CASCADE);" 
 
 #create table source_properties to store the limits and availbility of the parameters for each source from HITRAN or EXOMOL
 source_properties_table_create_query = "CREATE TABLE IF NOT EXISTS source_properties (line_source VARCHAR(25) NOT NULL, \
@@ -55,7 +74,7 @@ line_source_id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY);"
 ##################
 
 #create indexes on nu, A, elower, and line_source in table transitions
-create_index_line_source = "CREATE INDEX line_source_index ON transitions(line_source) USING BTREE;"
+create_index_line_source = "CREATE INDEX line_source_index ON transitions(line_source_id) USING BTREE;"
 create_index_nu = "CREATE INDEX nu_index ON transitions(nu) USING BTREE;"
 create_index_A = "CREATE INDEX A_index ON transitions(A) USING BTREE;"
 create_index_elower = "CREATE INDEX elower_index ON transitions(elower) USING BTREE;"
@@ -65,23 +84,23 @@ create_index_elower = "CREATE INDEX elower_index ON transitions(elower) USING BT
 def main():
     
     start_time = time.time()
-    '''
+    
     #create the database first and drop it if it exists already
     create_database()
     
     #create the tables
     sql_order(particles_table_create_query)
+    sql_order(source_properties_table_create_query)
     sql_order(transitions_table_create_query)
     sql_order(partitions_table_create_query)
     
-    # sql_order(source_properties_table_create_query) ######create this table when the database is entirely populated
-    '''
     '''
     #create the indexes in table transitions
     #index significance: line_source_id > nu > A > elower
     #t1 = time.time()
     #sql_order(create_index_line_source_id)
     #print("Finished line source id index in %s seconds" % (time.time() - t1))
+    print('starting...')
     t2 = time.time()
     sql_order(create_index_nu)
     print("Finished nu index in %s seconds" % (time.time() - t2))
