@@ -73,7 +73,7 @@ def write_and_sort_hitemp_data(filename, M_id, isotop_num):
 
 ##########################
    
-def insert_hitemp(fp, isotop_name, line_source_id, ref_link): 
+def insert_hitemp(fp, isotop_name, line_source, ref_link): 
     
     insert_time = time.time()
     
@@ -90,10 +90,27 @@ def insert_hitemp(fp, isotop_name, line_source_id, ref_link):
     sql_order('SET sql_log_bin = 0')
     
     try:
-        file_length = sum(1 for line in open(fp))
-        
         #get particle id
         particle_id = get_particle(isotop_name)[0]
+        
+        #insert the line_source into source_properties and get line_source_id
+        insert_version_query = "INSERT IGNORE INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
+        bool_H2, bool_He, reference_link, particle_id, line_source_id) VALUES('%s', null, null, null, 'YES', 'NO', 'NO', '%s', \
+        '%s', null);" % (line_source, ref_link, particle_id)
+        
+        sql_order(insert_version_query)
+        
+        get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' AND \
+        particle_id = {}".format(line_source, particle_id)
+        
+        data = fetch(get_line_source_id_query)
+        
+        if len(data) != 1:
+            raise Exception('should have exactly one line_source_id corresponding to one line_source')
+        
+        line_source_id = data[0][0]
+        
+        file_length = sum(1 for line in open(fp))        
         
         print("Bulk inserting hitemp data...")
         cursor.execute("LOAD DATA LOCAL INFILE '{}' INTO TABLE transitions FIELDS TERMINATED BY ' ' LINES TERMINATED BY '\n' \
@@ -127,15 +144,19 @@ def insert_hitemp(fp, isotop_name, line_source_id, ref_link):
     
 def insert_all(fp, filename):
     t = time.time()
+    
+    hitemp_ref_link = r'https://www.ucl.ac.uk/amopp/sites/amopp/files/480.pdf'
+    hitemp_versions = ['HITEMP_2010', 'HITEMP_2019']
     iso_num_dict = {'01' : 6, '02' : 7, '04' : 5, '05' : 6, '08' : 3, '10' : 1, '13' : 3}
+    
     M_id = filename[:2]
     isotop_num = iso_num_dict.get(M_id)
     
     #pretty dumb way of splitting verions
     if M_id == '01' or M_id == '02' or M_id == '13':
-        line_source_id = hitemp_ids[0]
+        line_source = hitemp_versions[0]
     else: 
-        line_source_id = hitemp_ids[1]
+        line_source = hitemp_versions[1]
     
     if M_id.startswith('0'):
         M_id = M_id[1:]
@@ -143,7 +164,7 @@ def insert_all(fp, filename):
     iso_filepaths, isotop_names = write_and_sort_hitemp_data(fp, M_id, isotop_num)
     for i in range(len(iso_filepaths)):
         if os.path.isfile(iso_filepaths[i]) is True: #possible that in that file there exist no line for that low_iso_abundance isotopologue
-            insert_hitemp(iso_filepaths[i], isotop_names[i], line_source_id, hitemp_ref_link)           
+            insert_hitemp(iso_filepaths[i], isotop_names[i], line_source, hitemp_ref_link)           
             #delete the file because i am using appending method to open(file) and multiple files exists for one molecule
             os.remove(iso_filepaths[i])
             
@@ -156,10 +177,6 @@ def insert_all(fp, filename):
 
 start_time = time.time()
 
-hitemp_ref_link = r'https://www.ucl.ac.uk/amopp/sites/amopp/files/480.pdf'
-version_name_1 = 'HITEMP_2010'
-version_name_2 = 'HITEMP_2019'
-
 '''
 #used to unzip all the downloaded files
 for fp in os.listdir('/home/toma/Downloads'): 
@@ -167,25 +184,6 @@ for fp in os.listdir('/home/toma/Downloads'):
         with zipfile.ZipFile('/home/toma/Downloads/' + fp, 'r') as zip_ref:
             zip_ref.extractall('/home/toma/Desktop/linelists-database/hitemp')    
 '''
-
-hitemp_versions = ['HITEMP_2010', 'HITEMP_2019']
-hitemp_ids = []
-for version in hitemp_versions: 
-    #insert the line_source into source_properties and get line_source_id
-    insert_version_query = "INSERT INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
-    bool_H2, bool_He, reference_link, line_source_id) VALUES('%s', null, null, null, 'YES', 'NO', 'NO', '%s', null);" % \
-    (version, hitemp_ref_link)
-    
-    sql_order(insert_version_query)
-    
-    get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}'".format(version)
-    
-    data = fetch(get_line_source_id_query)
-    
-    if len(data) != 1:
-        raise Exception('should have exactly one line_source_id corresponding to one line_source')
-        
-    hitemp_ids.append(data[0][0])
 
 #load molecule properties file
 mol_ids, iso_ids, iso_names, iso_abundances, iso_masses, mol_names = \

@@ -46,8 +46,7 @@ def insert_partitions(partitions_filepath, line_source_id, particle_id):
     print("Bulk inserting partition data...")
     print("Executed {} lines of partition data".format(counter))
     
-    sql_bulk_order(query_insert_partitions, partition_data)    
-    db.commit()
+    sql_bulk_order(query_insert_partitions, partition_data)
 
 #####################
 
@@ -186,7 +185,7 @@ def insert_exomol(start_line, end_line, outfile_name, infile, line_source_id, pa
     print("Bulk inserted exomol data in %s seconds" % (time.time() - load_time))    
 
 ################
-
+'''
 start_time = time.time()
 
 #connect to the database
@@ -221,10 +220,10 @@ print('Finished loading states file in %s seconds' % (time.time() - states_time)
 H2_dict = temp_broad_param_dict('/home/toma/Desktop/linelists-database/PH3_H2_broad.txt')
 
 He_dict = temp_broad_param_dict('/home/toma/Desktop/linelists-database/PH3_He_broad.txt')
-'''
+
 H2_dict = temp_broad_param_dict('/home/toma/Desktop/12C-16O__H2.broad')
 He_dict = temp_broad_param_dict('/home/toma/Desktop/12C-16O__He.broad')
-'''
+
 
 #transition file
 counter = 0 
@@ -285,7 +284,7 @@ cursor.close()
 db.close()
 
 print("Finished in %s seconds" % (time.time() - start_time))
-
+'''
 #################################
 #################################
 #################################
@@ -293,7 +292,7 @@ print("Finished in %s seconds" % (time.time() - start_time))
 
 #fp stands for filepath
 def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, partitions_fp, \
-                       broad_H2_fp=None, broad_He_fp=None, DEFAULT_GAMMA, DEFAULT_N, trans_file_num, reference_link):
+                       broad_H2_fp, broad_He_fp, default_gamma, default_n, trans_file_num, reference_link):
     
     ###################
     
@@ -309,6 +308,7 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     #connect to the database
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
     #create a cursor object
+    global cursor
     cursor = db.cursor()
     #disable autocommit to improve performance
     sql_order('SET autocommit = 0')
@@ -318,30 +318,39 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     
     ##################
     
+    #get particle_id
+    get_particle_id = "SELECT particle_id FROM particles WHERE iso_name = '{}'".format(iso_name)
+    data = fetch(get_particle_id)
+    if len(data) != 1:
+        raise Exception('iso_name should correspond to exactly one isotopologue in the database')
+    particle_id = data[0][0]
+    
     #load H2/He params and in the mean while
     #insert the line_source into source_properties and get line_source_id
     if broad_H2_fp is None and broad_He_fp is None: #when no .broad files in exomol
         no_broadening_param = True
         
-        insert_version_query = "INSERT INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
-        bool_H2, bool_He, reference_link, line_source_id) VALUES('%s', null, null, null, 'NO', 'NO', 'NO', '%s', null);" % \
-        (version_name, reference_link)
+        insert_version_query = "INSERT IGNORE INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
+        bool_H2, bool_He, reference_link, particle_id, line_source_id) VALUES('%s', null, null, null, 'NO', 'NO', 'NO', '%s', \
+        '%s', null);" % (version_name, reference_link, particle_id)
         
     elif broad_H2_fp is not None and broad_He_fp is not None: #when both H2 and He .broad files in exomol
         no_broadening_param = False
+        global H2_dict, He_dict
         H2_dict = temp_broad_param_dict(broad_H2_fp)
         He_dict = temp_broad_param_dict(broad_He_fp)
         
-        insert_version_query = "INSERT INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
-        bool_H2, bool_He, reference_link, line_source_id) VALUES('%s', null, null, null, 'NO', 'YES', 'YES', '%s', null);" % \
-        (version_name, reference_link)
+        insert_version_query = "INSERT IGNORE INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
+        bool_H2, bool_He, reference_link, particle_id, line_source_id) VALUES('%s', null, null, null, 'NO', 'YES', 'YES', '%s', \
+        '%s', null);" % (version_name, reference_link, particle_id)
         
     else: 
         raise Exception('Should have either neither or both of the H2 and He broad param files')
         
     sql_order(insert_version_query)
     
-    get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}'".format(version_name)
+    get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' AND \
+    particle_id = {}".format(version_name, particle_id)
     
     data = fetch(get_line_source_id_query)
 
@@ -352,21 +361,16 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     
     #####################
     
-    #get particle_id
-    get_particle_id = "SELECT particle_id FROM particles WHERE iso_name = '{}'".format(iso_name)
-    data = fetch(get_particle_id)
-    if len(data) != 1:
-        raise Exception('iso_name should correspond to exactly one isotopologue in the database')
-    particle_id = data[0][0]
-    
     #insert partitions
     insert_partitions(partitions_fp, line_source_id, particle_id)
+    db.commit()
     
     #load states
     states_time = time.time()
     #get parameters needed to insert exomol data into transitions
     print('Loading huge ass states file')
-    #states in id order starts in 1 
+    #states in id order starts in 1
+    global Es, gs, Js, Ks
     Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 6), unpack=True)
     print('Finished loading states file in %s seconds' % (time.time() - states_time))
     
@@ -377,7 +381,7 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     counter = 0 
     
     for file_num in range(1, trans_file_num + 1):
-        curr_file = '/home/toma/Desktop/linelists-database/' + trans_fp + str(file_num)        
+        curr_file = trans_fp + str(file_num)        
         #get the number of lines in trans file
         length_trans = sum(1 for line in open(curr_file))
         print(length_trans, 'lines : Opened the transition file')

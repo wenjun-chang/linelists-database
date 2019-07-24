@@ -32,25 +32,25 @@ def insert_hitran(filename, version_name, particle_id, reference_link):
     sql_order('SET foreign_key_checks = 0')
     sql_order('SET sql_log_bin = 0')
     
-    #insert the line_source into source_properties and get line_source_id
-    insert_version_query = "INSERT INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
-    bool_H2, bool_He, reference_link, line_source_id) VALUES('%s', null, null, null, 'YES', 'YES', 'YES', '%s', null);" % \
-    (version_name, reference_link)
-        
-    sql_order(insert_version_query)
-    
-    get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}'".format(version_name)
-    
-    data = fetch(get_line_source_id_query)
-
-    if len(data) != 1:
-        raise Exception('should have exactly one line_source_id corresponding to one line_source')
-        
-    line_source_id = data[0][0]
-    
     #insert the data of all lines for CO into table lines
     # with open('CO(copy).out') as infile: #
     try:
+        #insert the line_source into source_properties and get line_source_id
+        insert_version_query = "INSERT IGNORE INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
+        bool_H2, bool_He, reference_link, particle_id, line_source_id) VALUES('%s', null, null, null, 'YES', 'YES', 'YES', '%s', \
+        '%s', null);" % (version_name, reference_link, particle_id)
+            
+        sql_order(insert_version_query)
+        
+        get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' AND \
+        particle_id = {}".format(version_name, particle_id)
+        
+        data = fetch(get_line_source_id_query)
+        
+        if len(data) != 1:
+            raise Exception('should have exactly one line_source_id corresponding to one line_source')
+            
+        line_source_id = data[0][0]
 
         #file that the parameters are written into and import to mysql using LOAD DATA INFILE
         f = open('/home/toma/Desktop/hitran.txt', 'w') 

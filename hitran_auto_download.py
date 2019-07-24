@@ -35,7 +35,10 @@ with open('/home/toma/Desktop/molecule_properties.txt', 'r') as f:
         outfile.write('\n')
     outfile.close()
 f.close()
-'''    
+'''
+
+version_name = 'HITRAN_2016'
+reference_link = r'https://www.sciencedirect.com/science/article/pii/S0022407317301073?via%3Dihub'
 
 #everything is in string though to be noticed
 #length of lists are 124
@@ -43,14 +46,12 @@ mol_ids, iso_ids, iso_names, iso_abundances, iso_masses, mol_names = \
 np.loadtxt('/home/toma/Desktop/molecule_properties (copy).txt', dtype='str', skiprows=1, usecols=(1, 2, 3, 4, 5, 6), unpack=True)
 
 for i in range(len(mol_ids)):
-    version_name = 'HITRAN_2016'
-    reference_link = r'https://www.sciencedirect.com/science/article/pii/S0022407317301073?via%3Dihub'
     
     particle_property_query = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % (mol_names[i], iso_names[i], \
                                                            iso_abundances[i], iso_masses[i], 1) #this one is temporary
     #insert each molecule's properties into particles table
     sql_order(particle_property_query)
-    '''
+    
     #then, fetch all the data from HITRAN using HAPI
     hapi.db_begin('data')
     #becasue cannot choose inifinity as upper limit, use a giant number instead
@@ -68,5 +69,5 @@ for i in range(len(mol_ids)):
     header_filename = '/home/toma/Desktop/linelists-database/data/{}.header'.format(mol_names[i])
     os.remove(filename)
     os.remove(header_filename)
-    '''
+    
 print("Finished in %s seconds" % (time.time() - start_time))

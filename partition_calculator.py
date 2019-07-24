@@ -58,6 +58,6 @@ def calculate_partition(states_filepath, partition_filepath, max_temp): #using H
 
 ########################
     
-calculate_partition('/home/toma/Desktop/linelists-database/PH3_states.txt', '/home/toma/Desktop/1314258', 3000)
+#calculate_partition('/home/toma/Desktop/linelists-database/PH3_states.txt', '/home/toma/Desktop/1314258', 3000)
 
 print("Finished in %s seconds" % (time.time() - start_time))
