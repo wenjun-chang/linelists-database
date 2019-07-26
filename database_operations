@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jul 26 13:53:21 2019
+
+@author: toma
+"""
+#this file imports all the package python files and create functions to do different operations
+##################
+
+from create_tables import create_database_with_tables_and_indexes
+from hitran_auto_download import import_hitran_and_populate_particles_table
+from hitemp_import import populate_all_hitemp
+from exomol_auto_download import populate_all_exomol
+
+##################
+
+#this fucntion creates the database with indexes on nu, A, and line_source_id, 
+#populates the particle table with all molecules in HITRAN, and populate the 
+#transitions table with HITRAN (and HITEMP, optional) lines
+#default to import both HITRAN and HITEMP, if dont want HITEMP pass in a False param
+def create_database_and_populate_hitran_and_hitemp(import_hitemp=True): 
+    create_database_with_tables_and_indexes() #takes ~5 secs
+    import_hitran_and_populate_particles_table() #takes ~10 mins
+    if import_hitemp is True: 
+        populate_all_hitemp() #takes from 60 mins to 100 mins
+
+#populates exomol data
+#need to do later....parameters that can specify which molecule to import or default = all molecules
+def populate_exomol():    
+    populate_all_exomol()
