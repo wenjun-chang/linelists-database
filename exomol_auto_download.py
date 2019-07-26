@@ -17,13 +17,13 @@ from partition_calculator import calculate_partition
 from exomol_import import import_exomol_data
 
 ############################
-#populate these after populating PH3
-astro_molecules = ['H2O', 'HCN', 'NH3', 'TiO', 'VO'] #'CO2', 'CH4''CO'
-#CO2 weird ass format lets only use zack and it is weird formatting need specify
+astro_molecules = ['NH3', 'CO', 'VO', 'TiO', 'HCN'] #'CO2' has some problem, 'H2O' 'CH4' do later
 #spedcial case CaO got 2 states files need hardcode
 
 #fine
-def get_molecule_links():
+def populate_all_exomol():
+    start_time = time.time()
+    
     url = r'http://exomol.com/data/molecules/'
     source_code = requests.get(url)
     plain_text = source_code.text
@@ -34,7 +34,7 @@ def get_molecule_links():
         #print(mol_name, href)
     
         if mol_name in astro_molecules:
-        #if mol_name == 'CO':
+        #if mol_name == 'CH4':
             print(mol_name, href)
             #if no broad files, need to do something in exomol_import since broad files are not loadable
             #such as skipping loading broad file section and just assign all stuff to default
@@ -45,37 +45,7 @@ def get_molecule_links():
             if has_broad_files is True: 
                 broad_H2_filepath = '/home/toma/Desktop/linelists-database/{}_H2_broad'.format(mol_name)
                 broad_He_filepath = '/home/toma/Desktop/linelists-database/{}_He_broad'.format(mol_name)
-            '''
-            ######################
-            #specially designed for CO2 weird format
-            if mol_name == 'CO2':
-                source_code = requests.get(r'http://exomol.com/data/molecules/CO2/')
-                plain_text = source_code.text
-                soup = BeautifulSoup(plain_text, features='lxml')
-                
-                for link in soup.find_all('a', attrs={'class': 'list-group-item link-list-group-item'}):
-                    #print(link)
-                    versions= []
-                    iso_name = ''
-                    atoms = link.get('href').split('-')
-                    
-                    for atom in atoms:
-                        iso_name = '(' + atom + ')'  
-                        href = molecule_url + '/' + link.get('href')
-                        #print(href)
-                        source_code = requests.get(href)
-                        plain_text = source_code.text
-                        soup = BeautifulSoup(plain_text, features='lxml')
-                    
-                        for link in soup.find_all('a', attrs={'title': 'Zak'}):
-                            href2 = href + '/' + link.get('href')
-                            #print(href2)
-                            source_code = requests.get(href2)
-                            plain_text = source_code.text
-                            soup = BeautifulSoup(plain_text, features='lxml')
-                        #i dont understand....
-            ######################    
-            '''
+            
             suffixes = get_trans_files(href, mol_name)
             
             #use exomol_import file to import data into the database
@@ -96,8 +66,9 @@ def get_molecule_links():
                     import_exomol_data(mol_name, iso_name, version_name, trans_filepath_without_file_number, states_filepath, \
                                        partitions_filepath, broad_H2_filepath, broad_He_filepath, DEFAULT_GAMMA, DEFAULT_N, \
                                        trans_file_num, ref_links)
-            
-        
+                    
+    print("Finished in %s seconds" % (time.time() - start_time))
+    
 #helper for getting trans files thx stackoverflow
 def has_href_and_title_but_no_class(tag):
     return tag.has_attr('href') and tag.has_attr('title') and not tag.has_attr('class')
@@ -123,7 +94,13 @@ def get_trans_files(molecule_url, molecule_name):
         iso_name = ''
         atoms = link.get('href').split('-')
         for atom in atoms:
-            iso_name += '(' + atom + ')'  
+            if atom[-1:].isdigit() is True: #if atom is like 16O2
+                num_atom = atom[-1:]
+                atom = atom[:-1]
+                iso_name += '(' + atom + ')' + num_atom
+            else: #if atom is like 12C
+                iso_name += '(' + atom + ')'
+        print(iso_name)
         href = molecule_url + '/' + link.get('href')
         #print(href)
         source_code = requests.get(href)
@@ -146,7 +123,7 @@ def get_trans_files(molecule_url, molecule_name):
                 version_name = 'EXOMOL_' + version_name
                 href2 = ''
                 href2 = href + '/' + link.get('href')
-                #print(href2)
+                print(href2)
                 source_code = requests.get(href2)
                 plain_text = source_code.text
                 soup = BeautifulSoup(plain_text, features='lxml')
@@ -205,35 +182,40 @@ def get_trans_files(molecule_url, molecule_name):
                     #2. partition
                     #3. states
                     #print(link)
+                    downloaded = ['NH3', 'TiO', 'VO', 'HCN'] #########
                     if link is not None: 
                         href5 = link.get('href')                            
                         #the trans file
                         if href5.endswith('.trans.bz2'):
                             file_num += 1
-                            trans_link = r'http://exomol.com' + href5
-                            #print(trans_link)
-                            download_bz2_file(trans_link, molecule_name + '_trans_' + iso_name + '_' + version_name + '_' + str(file_num))
+                            if molecule_name not in downloaded: #####
+                                trans_link = r'http://exomol.com' + href5
+                                #print(trans_link)
+                                download_bz2_file(trans_link, molecule_name + '_trans_' + iso_name + '_' + version_name + '_' + str(file_num))
                         
                         #the states file
                         elif href5.endswith('.states.bz2'):
-                            states_link = r'http://exomol.com' + href5
-                            #print(states_link)
-                            download_bz2_file(states_link, molecule_name + '_states_' + iso_name + '_' + version_name)
+                            if molecule_name not in downloaded: #####
+                                states_link = r'http://exomol.com' + href5
+                                #print(states_link)
+                                download_bz2_file(states_link, molecule_name + '_states_' + iso_name + '_' + version_name)
                             
                         #the partition file
                         elif href5.endswith('.pf'):
-                            has_partitions = True
-                            partitions_link = r'http://exomol.com' + href5
-                            #print(partitions_link)
-                            download_file(partitions_link, molecule_name + '_partitions_' + iso_name + '_' + version_name)                
+                            if molecule_name not in downloaded: #####
+                                has_partitions = True
+                                partitions_link = r'http://exomol.com' + href5
+                                #print(partitions_link)
+                                download_file(partitions_link, molecule_name + '_partitions_' + iso_name + '_' + version_name)                
                                     
                 #if no partition file...can only use this instead of downloading the partition file form exomol in the future
                 if has_partitions is False: 
-                    #calculate partiton function and write to a file
-                    states_filepath = '/home/toma/Desktop/linelists-database/' + molecule_name + '_states_' + iso_name + '_' + version_name
-                    partition_filepath = '/home/toma/Desktop/linelists-database/' + molecule_name + '_partitions_' + iso_name + '_' + version_name
-                    #this fucntion will calculate partition and save it to the same filepath as if the partition file exists
-                    calculate_partition(states_filepath, partition_filepath, 10000)
+                    if molecule_name not in downloaded: #####
+                        #calculate partiton function and write to a file
+                        states_filepath = '/home/toma/Desktop/linelists-database/' + molecule_name + '_states_' + iso_name + '_' + version_name
+                        partition_filepath = '/home/toma/Desktop/linelists-database/' + molecule_name + '_partitions_' + iso_name + '_' + version_name
+                        #this fucntion will calculate partition and save it to the same filepath as if the partition file exists
+                        calculate_partition(states_filepath, partition_filepath, 10000)
                 
                 #find the link to the reference paper...now just fetch all the links
                 #still dont know how to handle this
@@ -258,19 +240,6 @@ def get_trans_files(molecule_url, molecule_name):
                 #append the fucntioning version and number of trans files to returning output 
                 versions_and_file_nums_and_default_and_ref_links.append((version_name, file_num, DEFAULT_GAMMA, DEFAULT_N, ref_links))
             
-        '''
-        #if number of partition files does not match number of useful version available
-        if num_partitions != len(versions):
-            #do sth
-            pass
-        if num_partitions == 0:
-            #delete all files for this isotopologue if no single partition file exist for this isotopologues
-            for filename in os.listdir('/home/toma/Desktop/linelists-database'):
-                if iso_name in filename:
-                    os.remove('/home/toma/Desktop/linelists-database/' + filename)
-        '''
-        #if not at least one of parition, states, and trans file is existing then delete all
-        #if only one partition file, chnage partition filename to general name
         print(iso_name, versions_and_file_nums_and_default_and_ref_links)
         versions = [i[0] for i in versions_and_file_nums_and_default_and_ref_links]
         print('Versions for', iso_name, 'includes', *versions)
@@ -344,15 +313,6 @@ def download_bz2_file(bz2_url, outfile_name):
     outfile.close()
     '''
     
-##################       
-   
-def main():
-    start_time = time.time()
-    get_molecule_links()
-    #get_trans_files(r'http://exomol.com/data/molecules/PH3', 'PH3')
-    #get_broad_files(r'http://exomol.com/data/molecules/PH3', 'PH3')
-    #download_bz2_file(r'http://exomol.com/db/PH3/31P-1H3/SAlTY/31P-1H3__SAlTY__00000-00100.trans.bz2', 'test')
-    print("Finished in %s seconds" % (time.time() - start_time))
-    
+##################   
 if __name__ == '__main__':
-    main()
+    populate_all_exomol()

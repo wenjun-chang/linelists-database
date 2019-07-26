@@ -10,12 +10,6 @@ Created on Thu Jun 20 13:13:51 2019
 
 import MySQLdb
 from query_functions import sql_order, fetch
-import time
-
-###############
-
-#insert CO data into table particle
-CO = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % ('CO', '(12C)(16O)', 0.986544, 27.994915, 1)
 
 ##########################
 
@@ -116,19 +110,3 @@ def insert_hitran(filename, version_name, particle_id, reference_link):
         cursor.close()
         db.close()
         
-##################        
-def main():
-    
-    start_time = time.time()
-       
-    #insert CO data in table 1
-    #sql_order(CO)
-    #PH3 = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % ('PH3', '(31P)(1H)3', 0.999533, 33.997238, 'EXOMOL_SAlTY')
-    #sql_order(PH3)
-    #insert the data of all lines for CO into table lines
-    insert_hitran('/home/toma/Desktop/co_test.out', 'HITRAN_2016', 1, r'https://www.sciencedirect.com/science/article/pii/S0022407317301073?via%3Dihub')
-        
-    print("Finished in %s seconds" % (time.time() - start_time))
-    
-if __name__ == '__main__':
-    main()

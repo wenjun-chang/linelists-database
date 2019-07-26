@@ -23,7 +23,7 @@ import os
 
 #############################
 
-def write_and_sort_hitemp_data(filename, M_id, isotop_num):
+def write_and_sort_hitemp_data(filename, M_id, isotop_num, mol_ids, iso_ids, iso_names):
     filepath_without_isotop_name = '/home/toma/Desktop/linelists-database/hitemp_'
     print(M_id, isotop_num)
     #get iso name for each iso num
@@ -93,22 +93,30 @@ def insert_hitemp(fp, isotop_name, line_source, ref_link):
         #get particle id
         particle_id = get_particle(isotop_name)[0]
         
-        #insert the line_source into source_properties and get line_source_id
-        insert_version_query = "INSERT IGNORE INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
-        bool_H2, bool_He, reference_link, particle_id, line_source_id) VALUES('%s', null, null, null, 'YES', 'NO', 'NO', '%s', \
-        '%s', null);" % (line_source, ref_link, particle_id)
-        
-        sql_order(insert_version_query)
-        
         get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' AND \
         particle_id = {}".format(line_source, particle_id)
         
-        data = fetch(get_line_source_id_query)
-        
-        if len(data) != 1:
-            raise Exception('should have exactly one line_source_id corresponding to one line_source')
-        
-        line_source_id = data[0][0]
+        output = fetch(get_line_source_id_query)        
+        if output != (): #source inserted already            
+            line_source_id = output[0][0]
+         
+        else: #insert the source and get the source id
+            #insert the line_source into source_properties and get line_source_id
+            insert_version_query = "INSERT IGNORE INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
+            bool_H2, bool_He, reference_link, particle_id, line_source_id) VALUES('%s', null, null, null, 'YES', 'NO', 'NO', '%s', \
+            '%s', null);" % (line_source, ref_link, particle_id)
+            
+            sql_order(insert_version_query)
+            
+            get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' AND \
+            particle_id = {}".format(line_source, particle_id)
+            
+            data = fetch(get_line_source_id_query)
+            
+            if len(data) != 1:
+                raise Exception('should have exactly one line_source_id corresponding to one line_source')
+            
+            line_source_id = data[0][0]
         
         file_length = sum(1 for line in open(fp))        
         
@@ -142,7 +150,7 @@ def insert_hitemp(fp, isotop_name, line_source, ref_link):
     
 #########################
     
-def insert_all(fp, filename):
+def insert_all(fp, filename, mol_ids, iso_ids, iso_names):
     t = time.time()
     
     hitemp_ref_link = r'https://www.ucl.ac.uk/amopp/sites/amopp/files/480.pdf'
@@ -161,7 +169,7 @@ def insert_all(fp, filename):
     if M_id.startswith('0'):
         M_id = M_id[1:]
         
-    iso_filepaths, isotop_names = write_and_sort_hitemp_data(fp, M_id, isotop_num)
+    iso_filepaths, isotop_names = write_and_sort_hitemp_data(fp, M_id, isotop_num, mol_ids, iso_ids, iso_names)
     for i in range(len(iso_filepaths)):
         if os.path.isfile(iso_filepaths[i]) is True: #possible that in that file there exist no line for that low_iso_abundance isotopologue
             insert_hitemp(iso_filepaths[i], isotop_names[i], line_source, hitemp_ref_link)           
@@ -172,28 +180,31 @@ def insert_all(fp, filename):
     print("Finished id %s with %s isotopologues in %s seconds" % (M_id, len(isotop_names), time.time() - t))
     
 ##########################
+def populate_all_hitemp():  
+    #cant deal with ftp: manually downlaoding all files
     
-#cant deal with ftp: manually downlaoding all files
+    start_time = time.time()
+    
+    '''
+    #used to unzip all the downloaded files
+    for fp in os.listdir('/home/toma/Downloads'): 
+        if fp.endswith('.zip'):
+            with zipfile.ZipFile('/home/toma/Downloads/' + fp, 'r') as zip_ref:
+                zip_ref.extractall('/home/toma/Desktop/linelists-database/hitemp')    
+    '''
+    
+    #load molecule properties file
+    mol_ids, iso_ids, iso_names = np.loadtxt('/home/toma/Desktop/molecule_properties (copy).txt', dtype='str', \
+                                             skiprows=1, usecols=(1, 2, 3), unpack=True)
+    
+    counter = 0
+    for hitemp_fp in os.listdir('/home/toma/Desktop/linelists-database/hitemp'):
+        counter += 1
+        print(hitemp_fp)
+        insert_all('/home/toma/Desktop/linelists-database/hitemp/' + hitemp_fp, hitemp_fp, mol_ids, iso_ids, iso_names)
+        print('Finished file', str(counter))
+    
+    print("Finished in %s seconds" % (time.time() - start_time))
 
-start_time = time.time()
-
-'''
-#used to unzip all the downloaded files
-for fp in os.listdir('/home/toma/Downloads'): 
-    if fp.endswith('.zip'):
-        with zipfile.ZipFile('/home/toma/Downloads/' + fp, 'r') as zip_ref:
-            zip_ref.extractall('/home/toma/Desktop/linelists-database/hitemp')    
-'''
-
-#load molecule properties file
-mol_ids, iso_ids, iso_names, iso_abundances, iso_masses, mol_names = \
-np.loadtxt('/home/toma/Desktop/molecule_properties (copy).txt', dtype='str', skiprows=1, usecols=(1, 2, 3, 4, 5, 6), unpack=True)
-
-counter = 0
-for hitemp_fp in os.listdir('/home/toma/Desktop/linelists-database/hitemp'):
-    counter += 1
-    print(hitemp_fp)
-    insert_all('/home/toma/Desktop/linelists-database/hitemp/' + hitemp_fp, hitemp_fp)
-    print('Finished file', str(counter))
-
-print("Finished in %s seconds" % (time.time() - start_time))
+if __name__ == '__main__':
+    populate_all_hitemp()

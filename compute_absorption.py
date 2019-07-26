@@ -46,9 +46,9 @@ G_TO_AMU = 1.66054e-24#1.66053904e-24
 
 #fetch the partition function value given an input T, temperature
 def get_partition(T, line_source_id, particle_id): #temp has to be a float i.g. 19.0
-    
+    print(T, line_source_id, particle_id)
     #query for the partition function given T, temperature
-    query = "SELECT `partition` FROM partitions WHERE temperature = {} AND line_source_id = '{}' AND particle_id = {}".format(T, line_source_id, particle_id)
+    query = "SELECT `partition` FROM partitions WHERE temperature = {} AND line_source_id = {} AND particle_id = {}".format(T, line_source_id, particle_id)
     
     data = fetch(query)
     
@@ -167,7 +167,8 @@ def compute_all(v, T, p, iso_name, line_source='default'):
     #get paritition using the correct function
     if 'HITRAN' not in line_source: 
         
-        get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}'".format(line_source)
+        get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' and \
+        particle_id = {}".format(line_source, particle_id)
         data = fetch(get_line_source_id_query)
         if len(data) != 1:
             raise Exception('should have exactly one line_source_id corresponding to one line_source')   
@@ -236,8 +237,7 @@ def compute_all(v, T, p, iso_name, line_source='default'):
         
 #########################
 
-def compute_one_wavenum(wavenumber, T, p, iso_abundance, iso_mass, Q):
-    global lines_array
+def compute_one_wavenum(wavenumber, T, p, iso_abundance, iso_mass, Q, lines_array):
     
     cond = np.logical_and(wavenumber >= lines_array[:,0] - 25, wavenumber <= lines_array[:,0] + 25)
     
@@ -332,22 +332,26 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
     particle_id = particle_data[0]
     iso_abundance = particle_data[1]
     iso_mass = particle_data[2]
-
+    
+    get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}'".format(line_source)
+    data = fetch(get_line_source_id_query)
+    if len(data) != 1:
+        raise Exception('should have exactly one line_source_id corresponding to one line_source')   
+    line_source_id = data[0][0]
+    print(line_source_id)
+    
+    '''
     #get paritition using the correct function
-    if 'HITRAN' not in line_source: 
-        
-        get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}'".format(line_source)
-        data = fetch(get_line_source_id_query)
-        if len(data) != 1:
-            raise Exception('should have exactly one line_source_id corresponding to one line_source')   
-        line_source_id = data[0][0]
-        
+    if 'HITRAN' not in line_source and 'HITEMP' not in line_source: 
         Q = get_partition(T, line_source_id, particle_id)
+        
     else: #if computing using hitran data
         raise Exception('WAAAAAAAAAAAAA need to create the dictionary for best partition fucntion first')
         #or just randomly choose a version
         #Q = fetch("SELECT `partition` FROM partitions WHERE temperature = {} AND particle_id = {}".format(T, particle_id))[0][0]
-        
+    '''
+    Ts, Qs = np.loadtxt('/home/toma/Desktop/H2O_partitions_(1H2)(16O)_EXOMOL_POKAZATEL', usecols=(0, 1), unpack=True)
+    Q = Qs[999]
     #connect to the database
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
     #do put actual password when run
@@ -371,13 +375,12 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
     cursor.execute(query)
         
     lines_table = cursor.fetchall()
-    global lines_array
     lines_array = np.asarray(lines_table)
     
     absorption_cross_section = np.zeros(len(v))
     
     for i in range(len(v)): 
-        absorption_cross_section[i] = compute_one_wavenum(v[i], T, p, iso_abundance, iso_mass, Q)
+        absorption_cross_section[i] = compute_one_wavenum(v[i], T, p, iso_abundance, iso_mass, Q, lines_array)
         print(i)
     
     #close up cursor and connection
@@ -390,15 +393,7 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
 
 #obtain input v, T, p, iso_name, line_source from the user
 def main():
-    
-    '''
-    wavenums = np.loadtxt('/home/toma/Desktop/output_1000_1d-1.xsec', usecols=0, unpack=True)
-    line = (8410.624300000001, 0.00007795, None, None, None, 3.845, 1, 0.0747, 0.658, None, 0.048, 0.6, None)
-    a = compute_one_absorption(line, wavenums, 1000, 0.1, 380.297, 0.98654, 27.994915)
-    np.save('/home/toma/Desktop/temp.npy', a)
-    print(a)
-    '''
-    
+        
     start_time = time.time()
     
     #wavelengths in m --> convert to cm (x100)
@@ -406,15 +401,18 @@ def main():
     #thus, wavenums in cm^-1
     #wavenums = 1.0/wavelengths
     #wavelengths = np.exp(np.linspace(np.log(0.3e-4), np.log(30e-4), 4616))
-    wavenums = np.loadtxt('/home/toma/Desktop/output_1000_1d-1.xsec', usecols=0, unpack=True)
+    #wavenums = np.loadtxt('/home/toma/Desktop/output_1000_1d-1.xsec', usecols=0, unpack=True)
     
-    absorption_cross_section = compute_all(wavenums, 1000, 0.1, '(12C)(16O)', 'EXOMOL_Li2015')
+    wavenums = np.loadtxt('/home/toma/Desktop/hitemp_H2O.xsec', usecols=0, unpack=True)
+    
+    absorption_cross_section = new_compute_all(wavenums, 1000, 0.1, '(1H)2(16O)', 'HITEMP_2010')
     #print('absorption_cross_section is', absorption_cross_section)
     np.save('/home/toma/Desktop/absorption.npy', absorption_cross_section)
     
     print("Finished in %s seconds" % (time.time() - start_time))
     
     '''
+    #interactive user interface
     print('Hello! Welcome to Toma\'s linelist database, sir.')
     toma = input('Do you want to obtain absorption cross section data today, Sir? \nEnter: Y or n \n')
     while True: 

@@ -96,10 +96,10 @@ create_index_elower = "CREATE INDEX elower_index ON transitions(elower) USING BT
 
 ##################
         
-def main():
+def create_database_with_tables_and_indexes():
     
     start_time = time.time()
-    '''
+    
     #create the database first and drop it if it exists already
     create_database()
     
@@ -109,7 +109,7 @@ def main():
     sql_order(transitions_table_create_query)
     sql_order(partitions_table_create_query)
     
-    '''
+    
     #Finished line source id index in 239.55348300933838 seconds
     #Finished nu index in 407.1092050075531 seconds
     #Finished A index in 332.6726574897766 seconds
@@ -129,12 +129,13 @@ def main():
     t3 = time.time()
     sql_order(create_index_A)
     print("Finished A index in %s seconds" % (time.time() - t3))
-    t4 = time.time()
-    sql_order(create_index_elower)
-    print("Finished elower index in %s seconds" % (time.time() - t4))
+    #diable elower index...insert later if needed
+    #t4 = time.time()
+    #sql_order(create_index_elower)
+    #print("Finished elower index in %s seconds" % (time.time() - t4))
     
    
     print("Finished in %s seconds" % (time.time() - start_time))
         
 if __name__ == '__main__':
-    main()
+    create_database_with_tables_and_indexes()

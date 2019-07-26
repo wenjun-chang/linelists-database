@@ -14,17 +14,6 @@ from query_functions import sql_bulk_order, sql_order, fetch
 import time
 import itertools
 
-'''
-#for CO
-DEFAULT_GAMMA = 0.0700 #750 PH3
-DEFAULT_N = 0.500 #530
-particle_id = 30
-'''
-#for PH3
-DEFAULT_GAMMA = 0.0750
-DEFAULT_N = 0.530
-particle_id = 93 # for PH3
-
 ####################
 
 #insert partition file
@@ -34,19 +23,24 @@ def insert_partitions(partitions_filepath, line_source_id, particle_id):
     query_insert_partitions = "INSERT INTO partitions (temperature, `partition`, line_source_id, particle_id, \
     partition_id) VALUES(%s, %s, {}, {}, null)".format(line_source_id, particle_id)
     
-    counter = 0
-    for j in range(len(partition_functions)):
-        T = Ts[j]
-        partition = partition_functions[j]
-        
-        partition_data.append((T, partition))
-        
-        counter += 1
+    check = fetch("SELECT `partition` FROM partitions where line_source_id = {} and particle_id = {}".format(line_source_id, particle_id))
     
-    print("Bulk inserting partition data...")
-    print("Executed {} lines of partition data".format(counter))
-    
-    sql_bulk_order(query_insert_partitions, partition_data)
+    if check == (): #haven't inserted partition    
+        counter = 0
+        for j in range(len(partition_functions)):
+            T = Ts[j]
+            partition = partition_functions[j]
+            
+            partition_data.append((T, partition))
+            
+            counter += 1
+        
+        print("Bulk inserting partition data...")
+        print("Executed {} lines of partition data".format(counter))
+        
+        sql_bulk_order(query_insert_partitions, partition_data)
+    else: #partition for this isotopologue and this source already in database
+        print('Partitions for this isotopologue and this exomol version already exist in database')
 
 #####################
 
@@ -75,7 +69,8 @@ def temp_broad_param_dict(infile):
 
 ####################
 
-def insert_exomol(start_line, end_line, outfile_name, infile, line_source_id, particle_id, no_broadening_param=False):
+def insert_exomol(cursor, H2_dict, He_dict, Es, gs, Js, Ks, start_line, end_line, outfile_name, infile, \
+                  line_source_id, particle_id, default_gamma, default_n, no_broadening_param=False):
     
     upper_ids, lower_ids, As = np.loadtxt(itertools.islice(infile, start_line, end_line), usecols=(0, 1, 2), unpack=True)
     print(len(upper_ids), 'lines : Loaded the parameters from the transition file')
@@ -84,6 +79,7 @@ def insert_exomol(start_line, end_line, outfile_name, infile, line_source_id, pa
     f = open(outfile_name, 'w') 
     
     file_time = time.time()
+    counter = 0
     
     #need optimizeoptimize
     for i in range(len(upper_ids)):
@@ -96,65 +92,98 @@ def insert_exomol(start_line, end_line, outfile_name, infile, line_source_id, pa
         g_upper = int(gs[upper_id - 1])
         
         if no_broadening_param is True: 
-            gamma_H2 = DEFAULT_GAMMA
-            n_H2 = DEFAULT_N
-            gamma_He = DEFAULT_GAMMA
-            n_He = DEFAULT_N
+            gamma_H2 = default_gamma
+            n_H2 = default_n
+            gamma_He = default_gamma
+            n_He = default_n
         
         else: #if H2/He broad_param files exists i.e. no_broadening_param is False
             J_lower = int(Js[lower_id - 1])
-            #K for c1 or a1 param style
-            K_lower = int(Ks[lower_id - 1])
             
-            #get H2 params
-            if H2_dict.get(str(J_lower) + '_' + str(K_lower)) is not None: #look for specific params by J and K
-                H2_params = H2_dict.get(str(J_lower) + '_' + str(K_lower))
-                if H2_params[0] is not None: 
-                    gamma_H2 = H2_params[0]
-                else: 
-                    gamma_H2 = DEFAULT_GAMMA
-                if H2_params[1] is not None: 
-                    n_H2 = H2_params[1]
-                else: 
-                    n_H2 = DEFAULT_N
-            elif H2_dict.get(str(J_lower)) is not None: #use the more generalized params by J
-                H2_params = H2_dict.get(str(J_lower))
-                if H2_params[0] is not None: 
-                    gamma_H2 = H2_params[0]
-                else: 
-                    gamma_H2 = DEFAULT_GAMMA
-                if H2_params[1] is not None: 
-                    n_H2 = H2_params[1]
-                else: 
-                    n_H2 = DEFAULT_N
-            else: #if cannot find params by J, set them to default
-                gamma_H2 = DEFAULT_GAMMA
-                n_H2 = DEFAULT_N
+            if Ks is None: #only 'a0' style
+                #get H2 params
+                if H2_dict.get(str(J_lower)) is not None: #use the more generalized params by J
+                    H2_params = H2_dict.get(str(J_lower))
+                    if H2_params[0] is not None: 
+                        gamma_H2 = H2_params[0]
+                    else: 
+                        gamma_H2 = default_gamma
+                    if H2_params[1] is not None: 
+                        n_H2 = H2_params[1]
+                    else: 
+                        n_H2 = default_n
+                else: #if cannot find params by J, set them to default
+                    gamma_H2 = default_gamma
+                    n_H2 = default_n
+                    
+                #get He params
+                if He_dict.get(str(J_lower)) is not None: 
+                    He_params = He_dict.get(str(J_lower))
+                    if He_params[0] is not None: 
+                        gamma_He = He_params[0]
+                    else: 
+                        gamma_He = default_gamma
+                    if He_params[1] is not None: 
+                        n_He = He_params[1]
+                    else: 
+                        n_He = default_n
+                else: #if cannot find params by J, set them to default
+                    gamma_He = default_gamma
+                    n_He = default_n
+                    
+            else: #'a1' style exists
+                #K for c1 or a1 param style
+                K_lower = int(Ks[lower_id - 1])
+                
+                #get H2 params
+                if H2_dict.get(str(J_lower) + '_' + str(K_lower)) is not None: #look for specific params by J and K
+                    H2_params = H2_dict.get(str(J_lower) + '_' + str(K_lower))
+                    if H2_params[0] is not None: 
+                        gamma_H2 = H2_params[0]
+                    else: 
+                        gamma_H2 = default_gamma
+                    if H2_params[1] is not None: 
+                        n_H2 = H2_params[1]
+                    else: 
+                        n_H2 = default_n
+                elif H2_dict.get(str(J_lower)) is not None: #use the more generalized params by J
+                    H2_params = H2_dict.get(str(J_lower))
+                    if H2_params[0] is not None: 
+                        gamma_H2 = H2_params[0]
+                    else: 
+                        gamma_H2 = default_gamma
+                    if H2_params[1] is not None: 
+                        n_H2 = H2_params[1]
+                    else: 
+                        n_H2 = default_n
+                else: #if cannot find params by J, set them to default
+                    gamma_H2 = default_gamma
+                    n_H2 = default_n
         
-            #get He params
-            if He_dict.get(str(J_lower) + '_' + str(K_lower)) is not None: 
-                He_params = He_dict.get(str(J_lower) + '_' + str(K_lower))
-                if He_params[0] is not None: 
-                    gamma_He = He_params[0]
-                else: 
-                    gamma_He = DEFAULT_GAMMA
-                if He_params[1] is not None: 
-                    n_He = He_params[1]
-                else: 
-                    n_He = DEFAULT_N
-            elif He_dict.get(str(J_lower)) is not None: 
-                He_params = He_dict.get(str(J_lower))
-                if He_params[0] is not None: 
-                    gamma_He = He_params[0]
-                else: 
-                    gamma_He = DEFAULT_GAMMA
-                if He_params[1] is not None: 
-                    n_He = He_params[1]
-                else: 
-                    n_He = DEFAULT_N
-            else: #if cannot find params by J, set them to default
-                gamma_He = DEFAULT_GAMMA
-                n_He = DEFAULT_N
+                #get He params
+                if He_dict.get(str(J_lower) + '_' + str(K_lower)) is not None: 
+                    He_params = He_dict.get(str(J_lower) + '_' + str(K_lower))
+                    if He_params[0] is not None: 
+                        gamma_He = He_params[0]
+                    else: 
+                        gamma_He = default_gamma
+                    if He_params[1] is not None: 
+                        n_He = He_params[1]
+                    else: 
+                        n_He = default_n
+                elif He_dict.get(str(J_lower)) is not None: 
+                    He_params = He_dict.get(str(J_lower))
+                    if He_params[0] is not None: 
+                        gamma_He = He_params[0]
+                    else: 
+                        gamma_He = default_gamma
+                    if He_params[1] is not None: 
+                        n_He = He_params[1]
+                    else: 
+                        n_He = default_n
+                else: #if cannot find params by J, set them to default
+                    gamma_He = default_gamma
+                    n_He = default_n
         
         
         v_ij = E_upper - E_lower
@@ -165,9 +194,7 @@ def insert_exomol(start_line, end_line, outfile_name, infile, line_source_id, pa
             f.write("%s " % item)
         f.write("\n")
         
-        global counter
         counter += 1
-        #print(counter)
     
     f.close()
     
@@ -182,7 +209,8 @@ def insert_exomol(start_line, end_line, outfile_name, infile, line_source_id, pa
               gamma_H2=@col5, n_H2=@col6, gamma_He=@col7, n_He=@col8, line_source_id={}, particle_id={};".format(line_source_id, particle_id))
     
     print('Executed {} lines of exomol data'.format(counter))
-    print("Bulk inserted exomol data in %s seconds" % (time.time() - load_time))    
+    print("Bulk inserted exomol data in %s seconds" % (time.time() - load_time))
+    return counter
 
 ################
 '''
@@ -296,11 +324,8 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     
     ###################
     
-    global DEFAULT_GAMMA, DEFAULT_N
-    DEFAULT_GAMMA = DEFAULT_GAMMA
-    DEFAULT_N = DEFAULT_N   
-    if DEFAULT_GAMMA is None or DEFAULT_N is None: 
-        raise Exception('DEFAULT_GAMMA or DEFAULT_N should not be null')
+    if default_gamma is None or default_n is None: 
+        raise Exception('default_gamma or default_n should not be null')
         
     ###################
     
@@ -308,7 +333,6 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     #connect to the database
     db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
     #create a cursor object
-    global cursor
     cursor = db.cursor()
     #disable autocommit to improve performance
     sql_order('SET autocommit = 0')
@@ -320,6 +344,13 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     
     #get particle_id
     get_particle_id = "SELECT particle_id FROM particles WHERE iso_name = '{}'".format(iso_name)
+    check = fetch(get_particle_id)        
+    if check == (): #if the particle is not yet in the particle table, insert it
+        #need to update the particle later...insert 0 for now
+        particle_property_query = "INSERT INTO particles VALUES('%s', '%s', '%s', '%s', '%s', null);" % (mol_name, iso_name, \
+                                                               0, 0, 1) #this 1 is temporary   
+        sql_order(particle_property_query)
+    #now get particle_id
     data = fetch(get_particle_id)
     if len(data) != 1:
         raise Exception('iso_name should correspond to exactly one isotopologue in the database')
@@ -336,7 +367,6 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
         
     elif broad_H2_fp is not None and broad_He_fp is not None: #when both H2 and He .broad files in exomol
         no_broadening_param = False
-        global H2_dict, He_dict
         H2_dict = temp_broad_param_dict(broad_H2_fp)
         He_dict = temp_broad_param_dict(broad_He_fp)
         
@@ -346,18 +376,24 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
         
     else: 
         raise Exception('Should have either neither or both of the H2 and He broad param files')
-        
-    sql_order(insert_version_query)
     
     get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' AND \
     particle_id = {}".format(version_name, particle_id)
     
-    data = fetch(get_line_source_id_query)
-
-    if len(data) != 1:
-        raise Exception('should have exactly one line_source_id corresponding to one line_source')
+    output = fetch(get_line_source_id_query)
+    if output != (): #if source was inserted already            
+        line_source_id = output[0][0]
         
-    line_source_id = data[0][0]
+    else: #insert the source and get the source id
+        #insert the line_source into source_properties and get line_source_id
+        sql_order(insert_version_query)
+    
+        data = fetch(get_line_source_id_query)
+
+        if len(data) != 1:
+            raise Exception('should have exactly one line_source_id corresponding to one line_source')
+            
+        line_source_id = data[0][0]
     
     #####################
     
@@ -370,17 +406,40 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     #get parameters needed to insert exomol data into transitions
     print('Loading huge ass states file')
     #states in id order starts in 1
-    global Es, gs, Js, Ks
-    Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 6), unpack=True)
-    print('Finished loading states file in %s seconds' % (time.time() - states_time))
+    
+    #for some reason this shit not working fix it tmr
+    if no_broadening_param is False:
+        has_K = False
+        for key in H2_dict.keys(): 
+            if '_' in key: 
+                has_K = True
+        for key in He_dict.keys(): 
+            if '_' in key: 
+                has_K = True
+        if has_K is True: #when contain 'a1' or sth
+            ##########version specification
+            Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 6), unpack=True)
+        else: 
+            Es, gs, Js= np.loadtxt(states_fp, usecols=(1, 2, 3), unpack=True)
+            Ks = None    
+    else: #no broadening param
+        Es, gs, Js= np.loadtxt(states_fp, usecols=(1, 2, 3), unpack=True)
+        Ks = None
+    
+    #Es, gs, Js= np.loadtxt(states_fp, usecols=(1, 2, 3), unpack=True)
+    #Ks = None
+    print('Finished loading states file in %s seconds' % (time.time() - states_time))                    
     
     ######################
     
     #insert transition files
-    global counter
     counter = 0 
     
     for file_num in range(1, trans_file_num + 1):
+        
+        if iso_name == '(14N)(1H)3' and version_name == 'EXOMOL_BYTe':
+            if file_num <= 66: 
+                continue
         curr_file = trans_fp + str(file_num)        
         #get the number of lines in trans file
         length_trans = sum(1 for line in open(curr_file))
@@ -395,14 +454,16 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
             repeat = 0
             
             while length_trans >= start_line + max_size: 
-                insert_exomol(start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt', trans, line_source_id, particle_id, no_broadening_param)
+                counter += insert_exomol(cursor, H2_dict, He_dict, Es, gs, Js, Ks, start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt', \
+                                         trans, line_source_id, particle_id, default_gamma, default_n, no_broadening_param)
                 #islice starts from the next line after the last read line
                 length_trans -= max_size
                 #print(int(length_trans))
                 repeat += 1
             
             #out of the while loop when difference between start_line and the max lines in trans file is less than max_size
-            insert_exomol(start_line, int(length_trans), '/home/toma/Desktop/exomol.txt', trans, line_source_id, particle_id, no_broadening_param)
+            counter += insert_exomol(cursor, H2_dict, He_dict, Es, gs, Js, Ks, start_line, int(length_trans), '/home/toma/Desktop/exomol.txt', \
+                                     trans, line_source_id, particle_id, default_gamma, default_n, no_broadening_param)
             
         #commit one file altogether at one time
         db.commit()
