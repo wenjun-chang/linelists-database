@@ -364,6 +364,8 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
         insert_version_query = "INSERT IGNORE INTO source_properties(line_source, max_temperature, max_nu, num_lines, bool_air, \
         bool_H2, bool_He, reference_link, particle_id, line_source_id) VALUES('%s', null, null, null, 'NO', 'NO', 'NO', '%s', \
         '%s', null);" % (version_name, reference_link, particle_id)
+        H2_dict = None
+        He_dict = None
         
     elif broad_H2_fp is not None and broad_He_fp is not None: #when both H2 and He .broad files in exomol
         no_broadening_param = False

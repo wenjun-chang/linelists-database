@@ -17,7 +17,7 @@ from partition_calculator import calculate_partition
 from exomol_import import import_exomol_data
 
 ############################
-astro_molecules = ['NH3', 'CO', 'VO', 'TiO', 'HCN'] #'CO2' has some problem, 'H2O' 'CH4' do later
+astro_molecules = ['CH4', 'CO', 'VO', 'TiO', 'HCN'] #'CO2' has some problem, 'H2O'  do later, 'NH3' done
 #spedcial case CaO got 2 states files need hardcode
 
 #fine
@@ -34,7 +34,6 @@ def populate_all_exomol():
         #print(mol_name, href)
     
         if mol_name in astro_molecules:
-        #if mol_name == 'CH4':
             print(mol_name, href)
             #if no broad files, need to do something in exomol_import since broad files are not loadable
             #such as skipping loading broad file section and just assign all stuff to default
@@ -182,7 +181,7 @@ def get_trans_files(molecule_url, molecule_name):
                     #2. partition
                     #3. states
                     #print(link)
-                    downloaded = ['NH3', 'TiO', 'VO', 'HCN'] #########
+                    downloaded = ['TiO', 'VO', 'HCN'] #########
                     if link is not None: 
                         href5 = link.get('href')                            
                         #the trans file
