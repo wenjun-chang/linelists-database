@@ -419,17 +419,25 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
             if '_' in key: 
                 has_K = True
         if has_K is True: #when contain 'a1' or sth
-            ##########version specification
-            Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 6), unpack=True)
+            if mol_name == 'H2O': ##version specification for H2O
+                if version_name == 'POKAZATEL': 
+                    Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 4), unpack=True)
+                elif version_name == 'BT2': 
+                    Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 13), unpack=True)
+                elif version_name == 'HotWat78': 
+                    Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 4), unpack=True)
+                elif version_name == 'VTT': 
+                    Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 11), unpack=True)
+                else: 
+                    raise Exception('Should not have versions other than POKAZATEL, BT2, HotWat78, and VTT for H2O')
+            else: #cases like PH3 and CH4
+                Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 6), unpack=True) 
         else: 
             Es, gs, Js= np.loadtxt(states_fp, usecols=(1, 2, 3), unpack=True)
             Ks = None    
     else: #no broadening param
         Es, gs, Js= np.loadtxt(states_fp, usecols=(1, 2, 3), unpack=True)
         Ks = None
-    
-    #Es, gs, Js= np.loadtxt(states_fp, usecols=(1, 2, 3), unpack=True)
-    #Ks = None
     print('Finished loading states file in %s seconds' % (time.time() - states_time))                    
     
     ######################
@@ -438,9 +446,17 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     counter = 0 
     
     for file_num in range(1, trans_file_num + 1):
-        
+        ####################!!!!!!!!!!remeber to take the if statements out when done
+        '''
         if iso_name == '(14N)(1H)3' and version_name == 'EXOMOL_BYTe':
             if file_num <= 66: 
+                continue
+        '''
+        if iso_name == '(12C)(1H)4' and version_name == 'EXOMOL_YT10to10':
+            if file_num <= 70:
+                continue
+        if iso_name == '(1H)(12C)(14N)' and version_name == 'EXOMOL_Harris':
+            if file_num <= 1:
                 continue
         curr_file = trans_fp + str(file_num)        
         #get the number of lines in trans file

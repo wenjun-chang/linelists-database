@@ -181,7 +181,7 @@ def get_trans_files(molecule_url, molecule_name):
                     #2. partition
                     #3. states
                     #print(link)
-                    downloaded = ['TiO', 'VO', 'HCN'] #########
+                    downloaded = ['CH4', 'TiO', 'VO', 'HCN'] #########
                     if link is not None: 
                         href5 = link.get('href')                            
                         #the trans file
