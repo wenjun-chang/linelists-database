@@ -15,9 +15,10 @@ import bz2
 import os
 from partition_calculator import calculate_partition
 from exomol_import import import_exomol_data
+from query_functions import sql_order
 
 ############################
-astro_molecules = ['CH4', 'CO', 'VO', 'TiO', 'HCN'] #'CO2' has some problem, 'H2O'  do later, 'NH3' done
+astro_molecules = ['H2O', 'NH3'] #'CO2' has some problem,'HCN', 'CH4', 'CO', 'VO', 'TiO' done
 #spedcial case CaO got 2 states files need hardcode
 
 #fine
@@ -181,7 +182,7 @@ def get_trans_files(molecule_url, molecule_name):
                     #2. partition
                     #3. states
                     #print(link)
-                    downloaded = ['CH4', 'TiO', 'VO', 'HCN'] #########
+                    downloaded = ['CH4', 'TiO', 'VO', 'HCN', 'NH3'] #########
                     if link is not None: 
                         href5 = link.get('href')                            
                         #the trans file
@@ -314,4 +315,16 @@ def download_bz2_file(bz2_url, outfile_name):
     
 ##################   
 if __name__ == '__main__':
+    
+    #disable autocommit to improve performance
+    sql_order('SET autocommit = 0')
+    sql_order('SET unique_checks = 0')
+    sql_order('SET foreign_key_checks = 0')
+    sql_order('SET sql_log_bin = 0')
+    
     populate_all_exomol()
+    
+    #turn them back on
+    sql_order('SET unique_checks = 1')
+    sql_order('SET foreign_key_checks = 1')
+    sql_order('SET sql_log_bin = 1')

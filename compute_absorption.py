@@ -25,6 +25,14 @@ import time
 from astropy.modeling.models import Voigt1D
 import scipy
 
+import numexpr as ne
+ne.set_vml_accuracy_mode('fast')
+ne.set_vml_num_threads(1)
+import os; os.environ['NUMEXPR_MAX_THREADS'] = '1'
+
+from numba import jit
+
+
 ######################
 
 #store the value of speed of light in cm/s
@@ -39,6 +47,8 @@ T_ref = 296
 c_2 = h * c / k_B
 #store the conversion from gram to amu
 G_TO_AMU = 1.66054e-24#1.66053904e-24
+#store pi value
+pi = 3.1415926535897932384626433
 
 ########################
 
@@ -195,7 +205,7 @@ def compute_all(v, T, p, iso_name, line_source='default'):
         WHERE particles.particle_id = {};".format(particle_id)
     
     else:
-        #query for all the lines of the3.7729922865792e-27 specified isotopologue from the user given nu, line_source
+        #query for all the lines of the specified isotopologue from the user given nu, line_source
         query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, \
         n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
         line_source_id = '{}'".format(particle_id, line_source_id)
@@ -227,30 +237,53 @@ def compute_all(v, T, p, iso_name, line_source='default'):
     return absorption_cross_section
         
 #########################
-@profile
-def compute_one_wavenum(wavenumber, T, p, iso_abundance, iso_mass, Q, v_ij_star, a, elower, g_upper, gamma_p_T):
+#@@profile
+#@jit(parallel=False, fastmath=True)
+def compute_one_wavenum(wavenumber, T, p, iso_abundance, iso_mass, Q, v_ij_star, a, elower, g_upper, gamma_p_T, lower_indexes, upper_indexes):
     
+
+    wavenumber = np.resize(wavenumber, (wavenumber.size, v_ij_star.size)).T
+    for i in range(len(wavenumber)):
+        wavenumber[i][:lower_indexes[i]] = np.nan
+        wavenumber[i][upper_indexes[i] + 1:] = np.nan
+    
+    #alternative way to compute voigt function: 70.0055468082428 seconds ; 0.01% diff ; 18% speed up
+    #sigma_thermal = np.sqrt(k_B * T / iso_mass / G_TO_AMU / c**2) * v_ij_star
+    z = (wavenumber.T - v_ij_star + gamma_p_T * 1j) / (np.sqrt(k_B * T / iso_mass / G_TO_AMU / c**2) * v_ij_star) / np.sqrt(2)
+    wofz = scipy.special.wofz(z)
+    voigt_profile = np.real(wofz)/ (np.sqrt(k_B * T / iso_mass / G_TO_AMU / c**2) * v_ij_star) / np.sqrt(2*np.pi)
+    
+    bool_nan = voigt_profile != np.nan
+    absorption = voigt_profile
     #compute line intensity function S_ij(T)
-    S_ij = (iso_abundance * a * g_upper * np.exp(-c_2 * elower / T) * (1 - np.exp(-c_2 * v_ij_star / T))) / (8 * np.pi * c * v_ij_star**2 * Q)
+    #S_ij = (iso_abundance * a * g_upper * np.exp(-c_2 * elower / T) * (1 - np.exp(-c_2 * v_ij_star / T))) / (8 * np.pi * c * v_ij_star**2 * Q)
+    absorption[bool_nan] *= (iso_abundance * a * g_upper * np.exp(-c_2 * elower / T) * (1 - np.exp(-c_2 * v_ij_star / T))) / (8 * np.pi * c * v_ij_star**2 * Q)
+    absorption[~bool_nan] = 0
+    
+    return np.sum(absorption, axis=1)
+    '''
+
+    #compute line intensity function S_ij(T)
+    S_ij = iso_abundance * a * g_upper * np.exp(-c_2 * elower / T) * (1 - np.exp(-c_2 * v_ij_star / T)) / (8 * pi * c * v_ij_star**2 * Q)
     
     #alternative way to compute voigt function: 70.0055468082428 seconds ; 0.01% diff ; 18% speed up
     sigma_thermal = np.sqrt(k_B * T / iso_mass / G_TO_AMU / c**2) * v_ij_star
     z = (wavenumber - v_ij_star + gamma_p_T * 1j) / sigma_thermal / np.sqrt(2)
-    voigt_profile = np.real(scipy.special.wofz(z))/sigma_thermal / np.sqrt(2*np.pi)
+    wofz = scipy.special.wofz(z)
+    voigt_profile = np.real(wofz)/sigma_thermal / np.sqrt(2*pi)
     absorption = S_ij * voigt_profile
-    #print(voigt_profile)
-    #print(sum(absorption))
+    
     return np.sum(absorption)
+    '''
     
 #########################
-@profile
+#@profile
 def new_compute_all(v, T, p, iso_name, line_source='default'): 
     #get particle_id and iso_abundance using the correct function
     particle_data = get_particle(iso_name)
     particle_id = particle_data[0]
     iso_abundance = particle_data[1]
-    iso_mass = particle_data[2]
-    
+    iso_mass = particle_data[2]    
     
     #use this temporarily for testing
     get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' and \
@@ -271,9 +304,9 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
         #or just randomly choose a version
         #Q = fetch("SELECT `partition` FROM partitions WHERE temperature = {} AND particle_id = {}".format(T, particle_id))[0][0]
     '''
-    Q = 162879.38910000
+    Q = 162879.38910000 #NO2
     print(Q)
-    
+    '''
     fetch_time =  time.time()
     
     #connect to the database
@@ -298,7 +331,7 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
     #this gives us a table of all the parameters we desire in a table in mysql
     cursor.execute(query)
     print('Finished querying and fetching line list in %s seconds' % (time.time() - fetch_time))
-    '''
+    
     #ran out of ~10GB of memory
     lines_table = cursor.fetchall()
     lines_array = np.asarray(lines_table)
@@ -312,13 +345,22 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
         print(i)
         absorption_cross_section[i] = compute_one_wavenum(v[i], T, p, iso_abundance, iso_mass, Q, lines_array)
     '''
-    num_rows = int(5e7)
+    num_rows = int(1e3)
+    start = 0 
     counter = 0
+    all_lines_array = np.load('/home/toma/Desktop/linelists-database/(14N)(16O)2 .npy')
+    absorption_cross_section = np.zeros(len(v))
     while True: 
         counter += 1
         print(counter)
-        lines_table = cursor.fetchmany(size=num_rows)
-        lines_array = np.asarray(lines_table, dtype=np.float32)
+        
+        end = min(start + num_rows, len(all_lines_array))
+        lines_array = all_lines_array[start:end]
+        print(len(all_lines_array))
+        print(len(lines_array))
+
+        #lines_table = cursor.fetchmany(size=num_rows) #########################
+        #lines_array = np.asarray(lines_table, dtype=np.float32) ################3
         
         ###############construct gamma and n arrays
         #assuming cond returns an array of indexes that are within the range of cut off
@@ -356,21 +398,21 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
         #where f_H2 = 0.85 and f_He = 0.15
         #if either n_H2 or n_He does not exist, f_H2/He (the exisiting one) = 1.0
         has_H2_and_He_gamma_N = np.all([bool_gamma_H2, bool_n_H2, bool_gamma_He, bool_n_He], axis=0)
-        gamma_p_T[has_H2_and_He_gamma_N] = p * (np.power(T_ref/ T, n_H2[has_H2_and_He_gamma_N]) * gamma_H2[has_H2_and_He_gamma_N] \
-                 * 0.85 + np.power(T_ref / T, n_He[has_H2_and_He_gamma_N]) * gamma_He[has_H2_and_He_gamma_N] * 0.15)
+        gamma_p_T[has_H2_and_He_gamma_N] = p * (T_ref/ T)**(n_H2[has_H2_and_He_gamma_N]) * gamma_H2[has_H2_and_He_gamma_N] \
+                 * 0.85 + (T_ref / T)**(n_He[has_H2_and_He_gamma_N]) * gamma_He[has_H2_and_He_gamma_N] * 0.15
         
         #if n_H2 does not exist, f_He = 1
         has_He_but_not_H2_gamma_N = np.all([bool_gamma_He, bool_n_He, ~np.logical_or(bool_gamma_H2, bool_n_H2)], axis=0)
-        gamma_p_T[has_He_but_not_H2_gamma_N] = p * np.power(T_ref / T, n_He[has_He_but_not_H2_gamma_N]) * gamma_He[has_He_but_not_H2_gamma_N]
+        gamma_p_T[has_He_but_not_H2_gamma_N] = p * (T_ref / T)**(n_He[has_He_but_not_H2_gamma_N]) * gamma_He[has_He_but_not_H2_gamma_N]
     
         #if n_He does not exist, f_H2 = 1
         has_H2_but_not_He_gamma_N = np.all([bool_gamma_H2, bool_n_H2, ~np.logical_or(bool_gamma_He, bool_n_He)], axis=0)
-        gamma_p_T[has_H2_but_not_He_gamma_N] = p * np.power(T_ref / T, n_H2[has_H2_but_not_He_gamma_N]) * gamma_H2[has_H2_but_not_He_gamma_N]
+        gamma_p_T[has_H2_but_not_He_gamma_N] = p * (T_ref / T)**(n_H2[has_H2_but_not_He_gamma_N]) * gamma_H2[has_H2_but_not_He_gamma_N]
     
         #if both n_H2 or n_He does not exist
         #gamma_p_T = p * (T_ref / T)^n_air * gamma_air
         has_only_air_gamma_N = gamma_p_T == 0
-        gamma_p_T[has_only_air_gamma_N] = p * np.power(T_ref / T, n_air[has_only_air_gamma_N]) * gamma_air[has_only_air_gamma_N]
+        gamma_p_T[has_only_air_gamma_N] = p * (T_ref / T)**(n_air[has_only_air_gamma_N]) * gamma_air[has_only_air_gamma_N]
         
         ###################
         #initialize an np array for v_ij_star
@@ -409,22 +451,32 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
         #indexes = np.searchsorted(ines_array, v) #where v[indexes - 1] < lines_array <= v[indexes]
         lower_indexes = np.searchsorted(lines_array[:,0], v - 25, side='right') #where lines_array[indexes - 1] <= v - 25 < lines_array[indexes]
         upper_indexes = np.searchsorted(lines_array[:,0], v + 25) #where lines_array[indexes - 1] < v + 25 <= lines_array[indexes]
-        
-        absorption_cross_section = np.zeros(len(v))
-        print(len(v))
+        print(lower_indexes, upper_indexes)
+        '''
         for i in range(len(v)): 
             if i % 10000 == 0: 
                 print(i)
+                
+            #no_need_compute = lower_indexes == upper_indexes
+            #print(no_need_compute)
+            #lower_indexes = lower_indexes[no_need_compute]
+            #print(lower_indexes)
+            
             absorption_cross_section[i] = compute_one_wavenum(v[i], T, p, iso_abundance, iso_mass, Q, \
                                     v_ij_star[lower_indexes[i] : upper_indexes[i]], a[lower_indexes[i] : upper_indexes[i]], \
                                     elower[lower_indexes[i] : upper_indexes[i]], g_upper[lower_indexes[i] : upper_indexes[i]], \
                                     gamma_p_T[lower_indexes[i] : upper_indexes[i]])
         if len(lines_array) < num_rows:
             break
+        '''
+        absorption_cross_section += compute_one_wavenum(v, T, p, iso_abundance, iso_mass, Q, v_ij_star, a, elower, g_upper, gamma_p_T, lower_indexes, upper_indexes)
+        start += num_rows
+        if end == len(all_lines_array):
+            break
         
     #close up cursor and connection
-    cursor.close()
-    db.close()
+    #cursor.close()
+    #db.close()
     
     return absorption_cross_section
     

@@ -99,7 +99,7 @@ create_index_elower = "CREATE INDEX elower_index ON transitions(elower) USING BT
 def create_database_with_tables_and_indexes():
     
     start_time = time.time()
-    
+    '''
     #create the database first and drop it if it exists already
     create_database()
     
@@ -108,7 +108,7 @@ def create_database_with_tables_and_indexes():
     sql_order(source_properties_table_create_query)
     sql_order(transitions_table_create_query)
     sql_order(partitions_table_create_query)
-    
+    '''
     
     #Finished line source id index in 239.55348300933838 seconds
     #Finished nu index in 407.1092050075531 seconds
@@ -117,12 +117,19 @@ def create_database_with_tables_and_indexes():
     #Finished in 1438.8043451309204 seconds
     #for total 137802916 lines
     
+    '''
     #create the indexes in table transitions
     #index significance: line_source_id > nu > A > elower
+    #yet line_source_index is not needed since foreign key is already present
+    #only need to recreate nu index, A index, and line_source_foreign_key
     print('starting...')
     t1 = time.time()
-    sql_order(create_index_line_source_id)
-    print("Finished line source id index in %s seconds" % (time.time() - t1))
+    sql_order('ALTER TABLE transitions ADD CONSTRAINT `transitions_ibfk_2` FOREIGN KEY (line_source_id) \
+              REFERENCES source_properties(line_source_id) ON UPDATE CASCADE ON DELETE CASCADE')
+    print("Finished line source foreign key in transitions in %s seconds" % (time.time() - t1))
+    #t1 = time.time()
+    #sql_order(create_index_line_source_id)
+    #print("Finished line source id index in %s seconds" % (time.time() - t1))
     t2 = time.time()
     sql_order(create_index_nu)
     print("Finished nu index in %s seconds" % (time.time() - t2))
@@ -133,8 +140,22 @@ def create_database_with_tables_and_indexes():
     #t4 = time.time()
     #sql_order(create_index_elower)
     #print("Finished elower index in %s seconds" % (time.time() - t4))
+    '''
     
-   
+    '''
+    #used to drop the indexes
+    #index significance: line_source_id > nu > A > elower
+    print('starting...')
+    t1 = time.time()
+    sql_order('DROP INDEX `A_index` ON transitions;')
+    print("Finished A index index in %s seconds" % (time.time() - t1))
+    t2 = time.time()
+    sql_order('DROP INDEX `nu_index` ON transitions;')
+    print("Finished nu index in %s seconds" % (time.time() - t2))
+    t3 = time.time()
+    sql_order('DROP INDEX `line_source_index` ON transitions;')
+    print("Finished line source index in %s seconds" % (time.time() - t3))
+    '''
     print("Finished in %s seconds" % (time.time() - start_time))
         
 if __name__ == '__main__':

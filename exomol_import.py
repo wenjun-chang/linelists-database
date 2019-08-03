@@ -335,10 +335,10 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     #create a cursor object
     cursor = db.cursor()
     #disable autocommit to improve performance
-    sql_order('SET autocommit = 0')
-    sql_order('SET unique_checks = 0')
-    sql_order('SET foreign_key_checks = 0')
-    sql_order('SET sql_log_bin = 0')
+    #sql_order('SET autocommit = 0')
+    #sql_order('SET unique_checks = 0')
+    #sql_order('SET foreign_key_checks = 0')
+    #sql_order('SET sql_log_bin = 0')
     
     ##################
     
@@ -448,17 +448,23 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     for file_num in range(1, trans_file_num + 1):
         ####################!!!!!!!!!!remeber to take the if statements out when done
         '''
+        fix this mess later
         if iso_name == '(14N)(1H)3' and version_name == 'EXOMOL_BYTe':
             if file_num <= 66: 
                 continue
         '''
+        '''
         if iso_name == '(12C)(1H)4' and version_name == 'EXOMOL_YT10to10':
             if file_num <= 70:
                 continue
-        if iso_name == '(1H)(12C)(14N)' and version_name == 'EXOMOL_Harris':
-            if file_num <= 1:
+        if iso_name == '(51V)(16O)' and version_name == 'EXOMOL_VOMYT':
+            if file_num <= 4:
                 continue
-        curr_file = trans_fp + str(file_num)        
+        '''
+        if mol_name == 'NH3': 
+            if iso_name != '(14N)(1H)3' and version_name != 'EXOMOL_BYTe' and file_num > 66:
+                continue            
+        curr_file = trans_fp + str(file_num)  
         #get the number of lines in trans file
         length_trans = sum(1 for line in open(curr_file))
         print(length_trans, 'lines : Opened the transition file')
@@ -492,9 +498,9 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
         #set @id:=0; update mytable set id = (@id := @id + 1) order by id; for correcting auto_increment if needed
     
     #turn them back on
-    sql_order('SET unique_checks = 1')
-    sql_order('SET foreign_key_checks = 1')
-    sql_order('SET sql_log_bin = 1')
+    #sql_order('SET unique_checks = 1')
+    #sql_order('SET foreign_key_checks = 1')
+    #sql_order('SET sql_log_bin = 1')
     
     cursor.close()
     db.close()
