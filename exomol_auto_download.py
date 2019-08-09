@@ -18,7 +18,8 @@ from exomol_import import import_exomol_data
 from query_functions import sql_order
 
 ############################
-astro_molecules = ['H2O', 'NH3'] #'CO2' has some problem,'HCN', 'CH4', 'CO', 'VO', 'TiO' done
+astro_molecules = ['HCN', 'CH4', 'CO', 'VO', 'TiO', 'NH3', 'H2O', 'CO2'] 
+#'CO2' has some problem,'HCN', 'CH4', 'CO', 'VO', 'TiO', 'NH3', 'H2O' (without superline) done
 #spedcial case CaO got 2 states files need hardcode
 
 #fine
@@ -33,8 +34,8 @@ def populate_all_exomol():
         mol_name = link.get('href')
         href = 'http://exomol.com/data/molecules/' + mol_name
         #print(mol_name, href)
-    
-        if mol_name in astro_molecules:
+        
+        if mol_name not in astro_molecules and mol_name != 'PH3' and mol_name != 'C2H4':
             print(mol_name, href)
             #if no broad files, need to do something in exomol_import since broad files are not loadable
             #such as skipping loading broad file section and just assign all stuff to default
@@ -66,7 +67,7 @@ def populate_all_exomol():
                     import_exomol_data(mol_name, iso_name, version_name, trans_filepath_without_file_number, states_filepath, \
                                        partitions_filepath, broad_H2_filepath, broad_He_filepath, DEFAULT_GAMMA, DEFAULT_N, \
                                        trans_file_num, ref_links)
-                    
+               
     print("Finished in %s seconds" % (time.time() - start_time))
     
 #helper for getting trans files thx stackoverflow
@@ -182,7 +183,7 @@ def get_trans_files(molecule_url, molecule_name):
                     #2. partition
                     #3. states
                     #print(link)
-                    downloaded = ['CH4', 'TiO', 'VO', 'HCN', 'NH3'] #########
+                    downloaded = ['HCN', 'CH4', 'CO', 'VO', 'TiO', 'NH3', 'H2O', 'CO2'] #########
                     if link is not None: 
                         href5 = link.get('href')                            
                         #the trans file
@@ -198,6 +199,9 @@ def get_trans_files(molecule_url, molecule_name):
                             if molecule_name not in downloaded: #####
                                 states_link = r'http://exomol.com' + href5
                                 #print(states_link)
+                                if molecule_name == 'CaO': #specially hardcoded for CaO which has 2 states files
+                                    if href5.endswith('.abinitio.states.bz2'):
+                                        continue #dont download the theoratical states file
                                 download_bz2_file(states_link, molecule_name + '_states_' + iso_name + '_' + version_name)
                             
                         #the partition file
@@ -242,7 +246,7 @@ def get_trans_files(molecule_url, molecule_name):
             
         print(iso_name, versions_and_file_nums_and_default_and_ref_links)
         versions = [i[0] for i in versions_and_file_nums_and_default_and_ref_links]
-        print('Versions for', iso_name, 'includes', *versions)
+        print('Versions for', molecule_name, 'includes', *versions)
         suffixes.append([iso_name, versions_and_file_nums_and_default_and_ref_links])
     print(suffixes)
     return suffixes #use this for full automation connect to exomol_import
@@ -328,3 +332,5 @@ if __name__ == '__main__':
     sql_order('SET unique_checks = 1')
     sql_order('SET foreign_key_checks = 1')
     sql_order('SET sql_log_bin = 1')
+
+    

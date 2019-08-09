@@ -15,11 +15,9 @@ wavelengths = (1 / wavenums) * 1e4
 
 
 #plt.subplot(1, 2, 1)
-print(wavelengths.shape)
-print(database_absorption)
 plt.plot(wavelengths, database_absorption)
 #plt.subplot(1, 2, 2)
-plt.plot(wavelengths, exocross_absorption / 46.0055 * 45.992904 * 0.991616)
+plt.plot(wavelengths, exocross_absorption)
 
 plt.xscale('log')
 plt.yscale('log')

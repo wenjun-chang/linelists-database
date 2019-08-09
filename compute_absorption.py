@@ -239,9 +239,9 @@ def compute_all(v, T, p, iso_name, line_source='default'):
 #########################
 #@@profile
 #@jit(parallel=False, fastmath=True)
-def compute_one_wavenum(wavenumber, T, p, iso_abundance, iso_mass, Q, v_ij_star, a, elower, g_upper, gamma_p_T, lower_indexes, upper_indexes):
+def compute_one_wavenum(wavenumber, T, p, iso_abundance, iso_mass, Q, v_ij_star, a, elower, g_upper, gamma_p_T):#, lower_indexes, upper_indexes):
     
-
+    '''
     wavenumber = np.resize(wavenumber, (wavenumber.size, v_ij_star.size)).T
     for i in range(len(wavenumber)):
         wavenumber[i][:lower_indexes[i]] = np.nan
@@ -270,11 +270,11 @@ def compute_one_wavenum(wavenumber, T, p, iso_abundance, iso_mass, Q, v_ij_star,
     sigma_thermal = np.sqrt(k_B * T / iso_mass / G_TO_AMU / c**2) * v_ij_star
     z = (wavenumber - v_ij_star + gamma_p_T * 1j) / sigma_thermal / np.sqrt(2)
     wofz = scipy.special.wofz(z)
-    voigt_profile = np.real(wofz)/sigma_thermal / np.sqrt(2*pi)
+    voigt_profile = np.real(wofz) / sigma_thermal / np.sqrt(2*pi)
     absorption = S_ij * voigt_profile
     
     return np.sum(absorption)
-    '''
+    
     
 #########################
 #@profile
@@ -283,7 +283,7 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
     particle_data = get_particle(iso_name)
     particle_id = particle_data[0]
     iso_abundance = particle_data[1]
-    iso_mass = particle_data[2]    
+    iso_mass = particle_data[2]
     
     #use this temporarily for testing
     get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' and \
@@ -345,10 +345,11 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
         print(i)
         absorption_cross_section[i] = compute_one_wavenum(v[i], T, p, iso_abundance, iso_mass, Q, lines_array)
     '''
-    num_rows = int(1e3)
+    num_rows = int(5e6)
     start = 0 
     counter = 0
     all_lines_array = np.load('/home/toma/Desktop/linelists-database/(14N)(16O)2 .npy')
+    print(len(all_lines_array))
     absorption_cross_section = np.zeros(len(v))
     while True: 
         counter += 1
@@ -356,7 +357,6 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
         
         end = min(start + num_rows, len(all_lines_array))
         lines_array = all_lines_array[start:end]
-        print(len(all_lines_array))
         print(len(lines_array))
 
         #lines_table = cursor.fetchmany(size=num_rows) #########################
@@ -452,7 +452,7 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
         lower_indexes = np.searchsorted(lines_array[:,0], v - 25, side='right') #where lines_array[indexes - 1] <= v - 25 < lines_array[indexes]
         upper_indexes = np.searchsorted(lines_array[:,0], v + 25) #where lines_array[indexes - 1] < v + 25 <= lines_array[indexes]
         print(lower_indexes, upper_indexes)
-        '''
+        
         for i in range(len(v)): 
             if i % 10000 == 0: 
                 print(i)
@@ -473,11 +473,11 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
         start += num_rows
         if end == len(all_lines_array):
             break
-        
+        '''
     #close up cursor and connection
     #cursor.close()
     #db.close()
-    
+
     return absorption_cross_section
     
 #########################

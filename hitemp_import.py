@@ -50,7 +50,7 @@ def write_and_sort_hitemp_data(filename, M_id, isotop_num, mol_ids, iso_ids, iso
             elower = line[45:55].strip()
             n_air = line[55:59].strip()
             delta_air = line[59:67].strip()
-            g_upper = line[-7:].strip()
+            g_upper = line[-14:-7].strip() #####ahhhhh g_upper not g_lower
             
             #line table arrangement corresponding to tuple indexes: 
             #(nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He, line_source_id, particle_id, line_id)

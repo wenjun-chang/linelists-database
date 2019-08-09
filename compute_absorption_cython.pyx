@@ -86,161 +86,8 @@ def get_particle(iso_name):
     #data[0] = (particle_id, iso_abundance, iso_mass)
     return data[0]
     
-##########################
-
-#absorption(v, T, p) = S_ij(T) * f(v, v_ij, T, p)        
-def compute_one_absorption(line, v, T, p, Q, iso_abundance, iso_mass):
-    #line is a tuple returned by fetchone() operation
-    #parameters for fectone() data corresponding to tuple indexes: 
-    #(nu, a, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, delta_He)
-    #(0,  1,     2,       3,       4,        5,     6,    7,       8,      9,      10,      11,     12   )
-    
-    #just name the variables to make things clear and easy to check
-    v_ij = line[0] #v_ij = nu !!!!!!!
-    a = line[1]
-    gamma_air = line[2]
-    n_air = line[3]
-    delta_air = line[4]
-    elower = line[5]
-    g_upper = line[6]
-    gamma_H2 = line[7]
-    n_H2 = line[8]
-    delta_H2 = line[9]
-    gamma_He = line[10]
-    n_He = line[11]
-    delta_He = line[12]
-    
-    #compute line intensity function S_ij(T)
-    S_ij = (iso_abundance * a * g_upper * math.exp(-c_2 * elower / T) * (1 - math.exp(-c_2 * v_ij / T))) / (8 * math.pi * c * math.pow(v_ij, 2) * Q)
-    
-    #compute gamma(p,T) for f
-    #T_red = 296 K
-    #gamma_p_T = p * ((T_ref / T)^n_H2 * gamma_H2 * f_H2 + (T_ref / T)^n_He * gamma_He * f_He)
-    #where f_H2 = 0.85 and f_He = 0.15
-    #if either n_H2 or n_He does not exist, f_H2/He (the exisiting one) = 1.0
-    if n_H2 is not None and gamma_H2 is not None and n_He is not None and gamma_He is not None:
-        gamma_p_T = p * (math.pow(T_ref/ T, n_H2) * gamma_H2 * 0.85 + math.pow(T_ref / T, n_He) * gamma_He * 0.15)
-        
-    #if n_H2 does not exist, f_He = 1
-    elif (n_H2 is None  or gamma_H2 is None) and (n_He is not None and gamma_He is not None):
-        gamma_p_T = p * math.pow(T_ref / T, n_He) * gamma_He
-    
-    #if n_He does not exist, f_H2 = 1
-    elif (n_He is None or gamma_He is None) and (n_H2 is not None and gamma_H2 is not None):
-        gamma_p_T = p * math.pow(T_ref / T, n_H2) * gamma_H2
-    
-    #if both n_H2 or n_He does not exist
-    #gamma_p_T = p * (T_ref / T)^n_air * gamma_air
-    else:
-        gamma_p_T = p * math.pow(T_ref / T, n_air) * gamma_air
-    
-
-    #compute v_ij_star for f 
-    #v_ij_star = v_ij + delta_net * p, where delta_net is computed in similar fashion to gamma_p_T
-    if delta_H2 is not None and delta_He is not None: #if both delta exists
-        v_ij_star = v_ij + p * (delta_H2 * 0.85 + delta_He * 0.15)
-        
-    elif delta_H2 is None and delta_He is not None: #when delta_H2 does not exist, f_He = 1.0
-        v_ij_star = v_ij + p * delta_He
-    
-    elif delta_He is None and delta_H2 is not None: #when delta_He does not exist, f_H2 = 1.0
-        v_ij_star = v_ij + p * delta_H2
-    
-    ######################!!!!!!!!!!!!!!this statement might be problematic..check logic!
-    elif delta_air is not None: #when both delta_H2 and delta_He does not exist, use delta_air
-        v_ij_star = v_ij + p * delta_air
-    else: #when all deltas do not exist
-        v_ij_star = v_ij
-    
-    #alternative way to compute voigt function: 70.0055468082428 seconds ; 0.01% diff ; 18% speed up
-    sigma_thermal = np.sqrt(k_B * T / iso_mass / G_TO_AMU / c**2) * v_ij_star
-    z = (v - v_ij_star + gamma_p_T * 1j) / sigma_thermal / np.sqrt(2)
-    voigt_profile = np.real(scipy.special.wofz(z))/sigma_thermal / np.sqrt(2*math.pi)
-    absorption = S_ij * voigt_profile
-    
-    #####astropy way computing voigt function : 86.21910214424133 seconds ; 0.01% diff
-    #doppler_broad = math.sqrt((8 * k_B * T * math.log(2)) / (iso_mass * G_TO_AMU * c**2)) * v_ij
-    #absorption_function = Voigt1D(x_0=v_ij_star, amplitude_L= 1 / (gamma_p_T * math.pi), fwhm_L=2 * gamma_p_T, fwhm_G=doppler_broad)
-    #absorption = S_ij * absorption_function(v)
-    
-    return absorption
-
-###################
-    
-#given input v, T, p, iso_name, source, and version, fetch all the line data of the input iso_name
-#use the parameters feteched to compute absorption cross section with the help of other functions
-def compute_all(v, T, p, iso_name, line_source='default'): 
-    
-    #get particle_id and iso_abundance using the correct function
-    particle_data = get_particle(iso_name)
-    particle_id = particle_data[0]
-    iso_abundance = particle_data[1]
-    iso_mass = particle_data[2]
-
-    #get paritition using the correct function
-    if 'HITRAN' not in line_source: 
-        
-        get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' and \
-        particle_id = {}".format(line_source, particle_id)
-        data = fetch(get_line_source_id_query)
-        if len(data) != 1:
-            raise Exception('should have exactly one line_source_id corresponding to one line_source and isotopologue')   
-        line_source_id = data[0][0]
-        
-        Q = get_partition(T, line_source_id, particle_id)
-    else: #if computing using hitran data
-        raise Exception('WAAAAAAAAAAAAA need to create the dictionary for best partition fucntion first')
-        #or just randomly choose a version
-        #Q = fetch("SELECT `partition` FROM partitions WHERE temperature = {} AND particle_id = {}".format(T, particle_id))[0][0]
-        
-    #connect to the database
-    db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
-    #do put actual password when run
-    
-    #create a cursor object
-    cursor = db.cursor()
-    
-    if line_source == 'default': 
-        #use this query for getting the lines of default line source
-        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, \
-        delta_He FROM transitions INNER JOIN particles ON particles.default_line_source_id = transitions.line_source_id \
-        WHERE particles.particle_id = {};".format(particle_id)
-    
-    else:
-        #query for all the lines of the specified isotopologue from the user given nu, line_source
-        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, \
-        n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
-        line_source_id = '{}'".format(particle_id, line_source_id)
-    
-    print(query)
-    
-    #this gives us a table of all the parameters we desire in a table in mysql
-    cursor.execute(query)
-    #rowcount is a read-only attribute and returns the number of rows that were affected by the execute() method.
-    rows = cursor.rowcount
-    print(rows, 'lines')
-    #the table could be gigantic, therefore fetchall() could be slow, therefore
-    #would rather fetch one single line as a tuple ( , , , ) each time and
-    #compute the absorption for that line, store it in variable and sum it over iterations. 
-    absorption_cross_section = np.zeros(len(v))
-
-    for i in range(rows):
-        #fetch one line
-        line = cursor.fetchone()
-        cond =  np.logical_and(v >= line[0] - 25, v <= line[0] + 25)
-        if np.sum(cond) > 0:
-            absorption_cross_section[cond] += compute_one_absorption(line, v[cond], T, p, Q, iso_abundance, iso_mass)
-        #print(i)
-    
-    #close up cursor and connection
-    cursor.close()
-    db.close()
-    
-    return absorption_cross_section
-        
 #########################
 #@profile
-#@jit(parallel=False, fastmath=True)
 cdef double compute_one_wavenum(double wavenumber, double T, double p, double iso_abundance, double iso_mass, \
                         double Q, double[:] v_ij_star, double[:] a, double[:] elower, double[:] g_upper, \
                         double[:] gamma_p_T):
@@ -248,42 +95,23 @@ cdef double compute_one_wavenum(double wavenumber, double T, double p, double is
     cdef double complex z, wofz
     cdef int N = a.shape[0]
     cdef unsigned int i
-    cdef double negative_c_2_divided_by_T = -c_2 / T
-    cdef double single_a, single_g_upper, single_elower, single_v_ij_star, single_gamma_p_T
+    iso_mass = 46.0055
+    iso_abundance = 1
 
     for i in range(N):
-        
-        single_a = a[i]
-        single_g_upper = g_upper[i]
-        single_elower = elower[i]
-        single_v_ij_star = v_ij_star[i]
-        single_gamma_p_T = gamma_p_T[i]
-        
-        S_ij = iso_abundance * single_a * single_g_upper * exp_approx(negative_c_2_divided_by_T * single_elower) * (1 - exp_approx(negative_c_2_divided_by_T * single_v_ij_star)) / (8 * M_PI * c * single_v_ij_star * single_v_ij_star * Q)
-        sigma_thermal = sqrt(k_B * T / (iso_mass * G_TO_AMU * c * c)) * single_v_ij_star
-        z = (wavenumber - single_v_ij_star + single_gamma_p_T * 1j) / (sigma_thermal * sqrt(2))
-        wofz = Faddeeva(z, 0)
+        S_ij = iso_abundance * a[i] * g_upper[i] * c_exp(-c_2 * elower[i] / T) * (1 - c_exp(-c_2 * v_ij_star[i] / T)) / (8 * M_PI * c * v_ij_star[i] * v_ij_star[i] * Q)
+        sigma_thermal = sqrt(k_B * T / (iso_mass * G_TO_AMU * c * c)) * v_ij_star[i]
+        z = (wavenumber - v_ij_star[i] + gamma_p_T[i] * 1j) / (sigma_thermal * sqrt(2))
+        wofz = Faddeeva(z, 1)
         #wofz = scipy.special.wofz(z)
         voigt_profile = wofz.real / (sigma_thermal * sqrt(2 * M_PI))
         absorption += S_ij * voigt_profile
         
     return absorption
 
-    '''
-    #compute line intensity function S_ij(T)
-    S_ij = iso_abundance * a * g_upper * np.exp(-c_2 * elower / T) * (1 - np.exp(-c_2 * v_ij_star / T)) / (8 * pi * c * v_ij_star**2 * Q)
-    #alternative way to compute voigt function: 70.0055468082428 seconds ; 0.01% diff ; 18% speed up
-    sigma_thermal = np.sqrt(k_B * T / iso_mass / G_TO_AMU / c**2) * v_ij_star
-    z = (wavenumber - v_ij_star + gamma_p_T * 1j) / sigma_thermal / np.sqrt(2)
-    wofz = scipy.special.wofz(z)
-    voigt_profile = np.real(wofz)/sigma_thermal / np.sqrt(2*pi)
-    absorption = S_ij * voigt_profile
-    
-    return np.sum(absorption)
-    '''
 #########################
 #@profile
-def new_compute_all(double[:] v, double T, double p, iso_name, line_source='default'): 
+cdef double[:] new_compute_all(double[:] v, double T, double p, iso_name, line_source='default'): 
     #get particle_id and iso_abundance using the correct function
     particle_data = get_particle(iso_name)
     cdef int particle_id
@@ -301,7 +129,6 @@ def new_compute_all(double[:] v, double T, double p, iso_name, line_source='defa
     line_source_id = data[0][0]
     print(line_source_id)
     
-    cdef double Q
     '''
     #get paritition using the correct function
     if 'HITRAN' not in line_source and 'HITEMP' not in line_source: 
@@ -312,7 +139,7 @@ def new_compute_all(double[:] v, double T, double p, iso_name, line_source='defa
         #or just randomly choose a version
         #Q = fetch("SELECT `partition` FROM partitions WHERE temperature = {} AND particle_id = {}".format(T, particle_id))[0][0]
     '''
-    Q = 162879.38910000 #NO2
+    cdef double Q = 162879.38910000 #NO2
     print(Q)
     '''
     fetch_time =  time.time()
@@ -353,19 +180,13 @@ def new_compute_all(double[:] v, double T, double p, iso_name, line_source='defa
         print(i)
         absorption_cross_section[i] = compute_one_wavenum(v[i], T, p, iso_abundance, iso_mass, Q, lines_array)
     '''
-    #cdef int num_rows, start, counter
-    num_rows = int(5e6)
-    start = 0 
-    counter = 0
+    cdef unsigned int num_rows = 5000000 #5e6
+    cdef unsigned int start = 0, counter = 0
+    cdef unsigned int length_lines_array,  N = len(v), i
+    cdef double[:] absorption_cross_section = np.zeros(len(v))
 
     all_lines_array = np.array(np.load('/home/toma/Desktop/linelists-database/(14N)(16O)2 .npy'), dtype=np.float64)
     print(len(all_lines_array))
-    #cdef double[:] 
-    absorption_cross_section = np.zeros(len(v))
-    
-    #cdef int 
-    N = len(v)
-    #cdef int i
     
     while True: 
         counter += 1
@@ -373,7 +194,9 @@ def new_compute_all(double[:] v, double T, double p, iso_name, line_source='defa
         
         end = min(start + num_rows, len(all_lines_array))
         lines_array = all_lines_array[start:end]
-        print(len(lines_array))
+        
+        length_lines_array = len(lines_array)
+        print(length_lines_array)
 
         #lines_table = cursor.fetchmany(size=num_rows) #########################
         #lines_array = np.asarray(lines_table, dtype=np.float32) ################3
@@ -470,6 +293,8 @@ def new_compute_all(double[:] v, double T, double p, iso_name, line_source='defa
         
         ##################
         #indexes = np.searchsorted(ines_array, v) #where v[indexes - 1] < lines_array <= v[indexes]
+        assert(np.all(np.sort(lines_array[:,0]) == lines_array[:,0]))
+
         lower_indexes = np.searchsorted(lines_array[:,0], np.array(v) - 25, side='right') #where lines_array[indexes - 1] <= v - 25 < lines_array[indexes]
         upper_indexes = np.searchsorted(lines_array[:,0], np.array(v) + 25) #where lines_array[indexes - 1] < v + 25 <= lines_array[indexes]
         print(lower_indexes, upper_indexes)
@@ -488,9 +313,13 @@ def new_compute_all(double[:] v, double T, double p, iso_name, line_source='defa
                                     v_ij_star[lower_indexes[i] : upper_indexes[i]], a[lower_indexes[i] : upper_indexes[i]], \
                                     elower[lower_indexes[i] : upper_indexes[i]], g_upper[lower_indexes[i] : upper_indexes[i]], \
                                     gamma_p_T[lower_indexes[i] : upper_indexes[i]])
-        if len(lines_array) < num_rows:
+            if i == 0:
+                print(v_ij_star[0], a[0], \
+                                    elower[0], g_upper[0], \
+                                    gamma_p_T[0])
+        if length_lines_array < num_rows:
             break
-        
+
     #close up cursor and connection
     #cursor.close()
     #db.close()

@@ -133,7 +133,7 @@ def insert_exomol(cursor, H2_dict, He_dict, Es, gs, Js, Ks, start_line, end_line
                     
             else: #'a1' style exists
                 #K for c1 or a1 param style
-                K_lower = int(Ks[lower_id - 1])
+                K_lower = Ks[lower_id - 1]
                 
                 #get H2 params
                 if H2_dict.get(str(J_lower) + '_' + str(K_lower)) is not None: #look for specific params by J and K
@@ -212,112 +212,10 @@ def insert_exomol(cursor, H2_dict, He_dict, Es, gs, Js, Ks, start_line, end_line
     print("Bulk inserted exomol data in %s seconds" % (time.time() - load_time))
     return counter
 
-################
-'''
-start_time = time.time()
-
-#connect to the database
-db = MySQLdb.connect(host='localhost', user='toma', passwd='Happy810@', db='linelist') 
-
-#create a cursor object
-cursor = db.cursor()
-
-#disable autocommit to improve performance
-
-sql_order('SET autocommit = 0')
-sql_order('SET unique_checks = 0')
-sql_order('SET foreign_key_checks = 0')
-sql_order('SET sql_log_bin = 0')
-
-####################
-    
-#for CO
-#insert_partitions('/home/toma/Desktop/12C-16O__Li2015_partition.pf', particle_id)
-insert_partitions('/home/toma/Desktop/linelists-database/PH3_partitions.txt', 'EXOMOL_Li2015', particle_id)
-
-###################
-
-states_time = time.time()
-#get parameters needed to insert exomol data into transitions
-print('Loading huge ass states file')
-#states in id order starts in 1 
-#Es, gs, Js = np.loadtxt('/home/toma/Desktop/12C-16O__Li2015.states', usecols=(1, 2, 3), unpack=True)
-Es, gs, Js, Ks= np.loadtxt('/home/toma/Desktop/linelists-database/PH3_states.txt', usecols=(1, 2, 3, 6), unpack=True)
-print('Finished loading states file in %s seconds' % (time.time() - states_time))
-
-H2_dict = temp_broad_param_dict('/home/toma/Desktop/linelists-database/PH3_H2_broad.txt')
-
-He_dict = temp_broad_param_dict('/home/toma/Desktop/linelists-database/PH3_He_broad.txt')
-
-H2_dict = temp_broad_param_dict('/home/toma/Desktop/12C-16O__H2.broad')
-He_dict = temp_broad_param_dict('/home/toma/Desktop/12C-16O__He.broad')
-
-
-#transition file
-counter = 0 
-
-#length_trans = sum(1 for line in open('/home/toma/Desktop/12C-16O__Li2015.trans'))
-
-#with open('/home/toma/Desktop/12C-16O__Li2015.trans') as trans: #for CO
-for file_num in range(1, 101):
-    curr_file = '/home/toma/Desktop/linelists-database/PH3_trans_{}'.format(file_num)
-    #curr_file = '/home/toma/Desktop/12C-16O__Li2015.trans'
-    
-    #get the number of lines in trans file
-    length_trans = sum(1 for line in open(curr_file))
-    print(length_trans, 'lines : Opened the transition file')
-    
-    #sql_order('ALTER TABLE transitions AUTO_INCREMENT = 1') #this can be used to solve auto_increment problems as well
-    
-    with open(curr_file) as trans:
-        #for spliiting file into smalller chunks...but mysql auto_increment seems to not be working properly
-        start_line = 0
-        max_size = 1e7
-        
-        repeat = 0
-        while length_trans >= start_line + max_size: 
-            
-            #need to change exomol_Li2015 into line_source_id next time running !!!!!!!!!!!!!
-            insert_exomol(start_line, int(start_line + max_size), '/home/toma/Desktop/exomol.txt', trans, 'EXOMOL_Li2015', particle_id)
-            
-            #islice removes starts from the next line after the last read line
-            length_trans -= max_size
-            #print(int(length_trans))
-            repeat += 1
-        
-        #out of the while loop when difference between start_line and the max lines in trans file is less than 1e6
-        insert_exomol(start_line, int(length_trans), '/home/toma/Desktop/exomol.txt', trans, 'EXOMOL_Li2015', particle_id)
-        
-        #insert_exomol('/home/toma/Desktop/exomol.txt', trans, particle_id)
-        
-    #commit one file altogether at one time    
-    db.commit()
-    trans.close()
-    
-    print('Finished loading {} with {} lines of data'.format(curr_file, int(length_trans + repeat * max_size)))
-    #print('Finished loading {} with {} lines of data'.format(curr_file, int(length_trans)))
-    
-    
-    #set @id:=0; update mytable set id = (@id := @id + 1) order by id; for correcting auto_increment if needed
-    
-###################
-
-#turn them back on
-
-sql_order('SET unique_checks = 1')
-sql_order('SET foreign_key_checks = 1')
-sql_order('SET sql_log_bin = 1')
-
-cursor.close()
-db.close()
-
-print("Finished in %s seconds" % (time.time() - start_time))
-'''
 #################################
 #################################
-#################################
+    
 #final boss function
-
 #fp stands for filepath
 def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, partitions_fp, \
                        broad_H2_fp, broad_He_fp, default_gamma, default_n, trans_file_num, reference_link):
@@ -409,7 +307,10 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     print('Loading huge ass states file')
     #states in id order starts in 1
     
-    #for some reason this shit not working fix it tmr
+    
+    #for all files this is true      
+    Es, gs, Js= np.loadtxt(states_fp, usecols=(1, 2, 3), unpack=True)
+        
     if no_broadening_param is False:
         has_K = False
         for key in H2_dict.keys(): 
@@ -418,25 +319,25 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
         for key in He_dict.keys(): 
             if '_' in key: 
                 has_K = True
+        
+        #load or not load Ks
         if has_K is True: #when contain 'a1' or sth
             if mol_name == 'H2O': ##version specification for H2O
-                if version_name == 'POKAZATEL': 
-                    Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 4), unpack=True)
-                elif version_name == 'BT2': 
-                    Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 13), unpack=True)
-                elif version_name == 'HotWat78': 
-                    Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 4), unpack=True)
-                elif version_name == 'VTT': 
-                    Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 11), unpack=True)
+                if version_name == 'EXOMOL_POKAZATEL': 
+                    Ks = np.loadtxt(states_fp, usecols=4, unpack=True, dtype=np.str)
+                elif version_name == 'EXOMOL_BT2': 
+                    Ks = np.loadtxt(states_fp, usecols=13, unpack=True, dtype=np.str)                    
+                elif version_name == 'EXOMOL_HotWat78': 
+                    Ks = np.loadtxt(states_fp, usecols=4, unpack=True, dtype=np.str)
+                elif version_name == 'EXOMOL_VTT': 
+                    Ks = np.loadtxt(states_fp, usecols=11, unpack=True, dtype=np.str)
                 else: 
-                    raise Exception('Should not have versions other than POKAZATEL, BT2, HotWat78, and VTT for H2O')
+                    raise Exception('Should not have versions other than POKAZATEL, BT2, HotWat78, and VTT for H2O in EXOMOL')
             else: #cases like PH3 and CH4
-                Es, gs, Js, Ks= np.loadtxt(states_fp, usecols=(1, 2, 3, 6), unpack=True) 
+                Ks = np.loadtxt(states_fp, usecols=6, unpack=True, dtype=np.str) 
         else: 
-            Es, gs, Js= np.loadtxt(states_fp, usecols=(1, 2, 3), unpack=True)
             Ks = None    
     else: #no broadening param
-        Es, gs, Js= np.loadtxt(states_fp, usecols=(1, 2, 3), unpack=True)
         Ks = None
     print('Finished loading states file in %s seconds' % (time.time() - states_time))                    
     
@@ -446,30 +347,16 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     counter = 0 
     
     for file_num in range(1, trans_file_num + 1):
-        ####################!!!!!!!!!!remeber to take the if statements out when done
         '''
-        fix this mess later
-        if iso_name == '(14N)(1H)3' and version_name == 'EXOMOL_BYTe':
-            if file_num <= 66: 
+        standard error control haha
+        if iso_name == '' and version_name == '':
+            if file_num <= 0: 
                 continue
         '''
-        '''
-        if iso_name == '(12C)(1H)4' and version_name == 'EXOMOL_YT10to10':
-            if file_num <= 70:
-                continue
-        if iso_name == '(51V)(16O)' and version_name == 'EXOMOL_VOMYT':
-            if file_num <= 4:
-                continue
-        '''
-        if mol_name == 'NH3': 
-            if iso_name != '(14N)(1H)3' and version_name != 'EXOMOL_BYTe' and file_num > 66:
-                continue            
         curr_file = trans_fp + str(file_num)  
         #get the number of lines in trans file
         length_trans = sum(1 for line in open(curr_file))
         print(length_trans, 'lines : Opened the transition file')
-        
-        #sql_order('ALTER TABLE transitions AUTO_INCREMENT = 1') #this can be used to solve auto_increment problems as well
         
         with open(curr_file) as trans:
             #for spliiting file into smalller chunks...but mysql auto_increment seems to not be working properly

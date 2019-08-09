@@ -10,19 +10,26 @@ from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
 from Cython.Build import cythonize
+
+#directive_defaults['linetrace'] = True
+#directive_defaults['binding'] = True
+
 '''
 setup(
     ext_modules = cythonize("compute_absorption_cython.pyx")
 )
 '''
+
 ext_modules=[ Extension("compute_absorption_c",
               ["compute_absorption_cython.pyx", "Faddeeva.cc"],
               libraries=["m"],
-              extra_compile_args = ["-ffast-math"], language="c++")]
+              extra_compile_args = ["-ffast-math"], 
+              language="c++")]
 
 setup(
       name = "compute_absorption_c",
       cmdclass = {"build_ext": build_ext},
+      compiler_directives={'linetrace':True, 'binding':True},
       ext_modules = ext_modules
       )
 
