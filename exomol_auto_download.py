@@ -18,9 +18,30 @@ from exomol_import import import_exomol_data
 from query_functions import sql_order
 
 ############################
-astro_molecules = ['HCN', 'CH4', 'CO', 'VO', 'TiO', 'NH3', 'H2O', 'CO2'] 
+astro_molecules = ['HCN', 'CH4', 'CO', 'VO', 'TiO', 'NH3', 'H2O', 'CO2']
 #'CO2' has some problem,'HCN', 'CH4', 'CO', 'VO', 'TiO', 'NH3', 'H2O' (without superline) done
+done = ['CH4', 'CO', 'VO', 'TiO', 'NH3', \
+        'MgH', 'NaH', 'NiH', 'AlH', 'CrH', 'CaH', 'BeH', 'TiH', 'FeH', 'LiH', 'ScH', \
+        'PN', 'KCl', 'NaCl', 'LiCl', 'CN', 'C2', 'H2', 'CS', 'CP', 'PS', 'NS', 'SiS', 'NaF', 'AlCl', 'AlF', 'KF', 'LiF', 'CaF', 'MgF', \
+        'H2O', 'CO2', 'HCN']
+#metal hydrides are done
+#other diatomics are done
+#now at triatomic molecules...
+#NiH is empty
+mega_file_molecules = ['PH3', 'C2H4']
 #spedcial case CaO got 2 states files need hardcode
+
+#werid inconsistency in SiS...might need to be reinserted...or one line doesnt matter
+#Loading huge ass states file
+#Finished loading states file in 0.0328824520111084 seconds
+#94229 lines : Opened the transition file
+#94228 lines : Loaded the parameters from the transition file
+#Write infile in 0.3567514419555664 seconds
+#Bulk inserting exomol data...
+#Executed 94228 lines of exomol data
+#Bulk inserted exomol data in 1.1548442840576172 seconds
+#Finished loading /home/toma/Desktop/linelists-database/SiS_trans_(29Si)(33S)_EXOMOL_UCTY_1 with 94229 lines of data
+#Finished inserting 94228 lines of exomol EXOMOL_UCTY data for (29Si)(33S) in 2.3626718521118164 seconds
 
 #fine
 def populate_all_exomol():
@@ -35,7 +56,7 @@ def populate_all_exomol():
         href = 'http://exomol.com/data/molecules/' + mol_name
         #print(mol_name, href)
         
-        if mol_name not in astro_molecules and mol_name != 'PH3' and mol_name != 'C2H4':
+        if mol_name not in done and mol_name not in mega_file_molecules:
             print(mol_name, href)
             #if no broad files, need to do something in exomol_import since broad files are not loadable
             #such as skipping loading broad file section and just assign all stuff to default
@@ -183,7 +204,7 @@ def get_trans_files(molecule_url, molecule_name):
                     #2. partition
                     #3. states
                     #print(link)
-                    downloaded = ['HCN', 'CH4', 'CO', 'VO', 'TiO', 'NH3', 'H2O', 'CO2'] #########
+                    downloaded = [] #########
                     if link is not None: 
                         href5 = link.get('href')                            
                         #the trans file
@@ -210,6 +231,9 @@ def get_trans_files(molecule_url, molecule_name):
                                 has_partitions = True
                                 partitions_link = r'http://exomol.com' + href5
                                 #print(partitions_link)
+                                if molecule_name == 'H2': #specially hardcoded for H2 whose partiton file is an invalid URL
+                                    has_partitions = False
+                                    continue                             
                                 download_file(partitions_link, molecule_name + '_partitions_' + iso_name + '_' + version_name)                
                                     
                 #if no partition file...can only use this instead of downloading the partition file form exomol in the future

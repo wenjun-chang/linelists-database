@@ -222,8 +222,12 @@ def import_exomol_data(mol_name, iso_name, version_name, trans_fp, states_fp, pa
     
     ###################
     
-    if default_gamma is None or default_n is None: 
-        raise Exception('default_gamma or default_n should not be null')
+    if default_gamma is None:
+        default_gamma = '\\N'
+        print('Oh Damn this isotologue has no gamma at all in exomol data')
+    if default_n is None: 
+        default_n = '\\N'
+        print('Oh Damn this isotologue has no N at all in exomol data')
         
     ###################
     
