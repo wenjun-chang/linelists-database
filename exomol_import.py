@@ -6,7 +6,7 @@ Created on Fri Jun 21 16:02:30 2019
 @author: toma
 """
 
-#this code helps import exomol data
+#this code helps import exomol data into the dataabase
 
 import MySQLdb
 import numpy as np

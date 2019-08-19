@@ -6,8 +6,8 @@ Created on Tue Jul  2 12:27:36 2019
 @author: toma
 """
 
-#imports all HITRAN molecule data into the database except for ClONO2, SF6, and CF4.
-#only external links to HITRAN 2012 data of those molecules are given
+#this file imports all HITRAN molecule data into the database except for ClONO2, SF6, and CF4.
+#only external links to HITRAN 2012 data of the above molecules are given
 #total molecules = 125 - 3 = 122
 
 import hapi

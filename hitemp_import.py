@@ -6,7 +6,7 @@ Created on Fri Jul 19 14:11:38 2019
 @author: toma
 """
 
-#this file imports hitemp data
+#this file imports all hitemp data that are downloaded in the directory (folder) `/home/toma/Desktop/linelists-database/hitemp`
 
 import numpy as np
 import MySQLdb

@@ -9,6 +9,8 @@ Created on Tue Jun 25 11:56:36 2019
 import MySQLdb
 import time
 
+#this file contains several helper functions to connect and do operations in mysql
+
 ##############
 
 def sql_order(query):

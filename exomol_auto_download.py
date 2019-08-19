@@ -17,19 +17,37 @@ from partition_calculator import calculate_partition
 from exomol_import import import_exomol_data
 from query_functions import sql_order
 
+#this file automates importing all exomol data EXCEPT mega_file_molecules and CaO and H2S
+#into the database if they are not specified in `done`
+
 ############################
 astro_molecules = ['HCN', 'CH4', 'CO', 'VO', 'TiO', 'NH3', 'H2O', 'CO2']
 #'CO2' has some problem,'HCN', 'CH4', 'CO', 'VO', 'TiO', 'NH3', 'H2O' (without superline) done
-done = ['CH4', 'CO', 'VO', 'TiO', 'NH3', \
-        'MgH', 'NaH', 'NiH', 'AlH', 'CrH', 'CaH', 'BeH', 'TiH', 'FeH', 'LiH', 'ScH', \
+done = ['MgH', 'NaH', 'NiH', 'AlH', 'CrH', 'CaH', 'BeH', 'TiH', 'FeH', 'LiH', 'ScH', \
         'PN', 'KCl', 'NaCl', 'LiCl', 'CN', 'C2', 'H2', 'CS', 'CP', 'PS', 'NS', 'SiS', 'NaF', 'AlCl', 'AlF', 'KF', 'LiF', 'CaF', 'MgF', \
-        'H2O', 'CO2', 'HCN']
+        'H2O', 'CO2','SO2', 'HCN', 'N2O', 'OCS', \
+        'VO', 'AlO', 'MgO', 'TiO', 'SiO', \
+        'NH', 'CH', 'OH', 'HCl', 'SiH', 'SH', 'HF', 'PH', \
+        'CO', 'NO', 'PO', \
+        'LiH_p', 'H2_p', 'HeH_p', 'H3_p', 'OH_p', \
+        'CH4', 'NH3', 'HNO3', 'H2CO', 'C2H2', 'AsH3']
+#_p means + for ions
+
 #metal hydrides are done
 #other diatomics are done
-#now at triatomic molecules...
+#triatomic molecule are done
+#metal oxides are done
+#other hydrides are done
+#other oxides are done
+#larger molecules done except for those in mega_file_molecules
 #NiH is empty
-mega_file_molecules = ['PH3', 'C2H4']
-#spedcial case CaO got 2 states files need hardcode
+#N2O is empty
+#OCS is empty
+#HF is empty
+#C2H2 is empty
+mega_file_molecules = ['H2O2', 'SO3', 'SiH4', 'CH3F', 'CH3Cl', 'C2H4', 'P2H2', 'PF3', 'PH3', 'CH3']
+#'CH3Cl' is superrrrr gigantic
+#skipped PH for some reason
 
 #werid inconsistency in SiS...might need to be reinserted...or one line doesnt matter
 #Loading huge ass states file
@@ -42,6 +60,8 @@ mega_file_molecules = ['PH3', 'C2H4']
 #Bulk inserted exomol data in 1.1548442840576172 seconds
 #Finished loading /home/toma/Desktop/linelists-database/SiS_trans_(29Si)(33S)_EXOMOL_UCTY_1 with 94229 lines of data
 #Finished inserting 94228 lines of exomol EXOMOL_UCTY data for (29Si)(33S) in 2.3626718521118164 seconds
+
+#spedcial case CaO got 2 states files need hardcode
 
 #fine
 def populate_all_exomol():
@@ -56,7 +76,8 @@ def populate_all_exomol():
         href = 'http://exomol.com/data/molecules/' + mol_name
         #print(mol_name, href)
         
-        if mol_name not in done and mol_name not in mega_file_molecules:
+        if mol_name not in done and mol_name not in mega_file_molecules and mol_name != 'H2S' and mol_name != 'CaO': 
+            #skipping H2S cuz the trans id exceed the number of states lfmao, and CaO has some weird issue lmao with tans file
             print(mol_name, href)
             #if no broad files, need to do something in exomol_import since broad files are not loadable
             #such as skipping loading broad file section and just assign all stuff to default
@@ -140,7 +161,7 @@ def get_trans_files(molecule_url, molecule_name):
             has_partitions = False
                             
             #make sure it is not an external link
-            if version_name.startswith('xsec') is False:
+            if version_name.startswith('xsec') is False and version_name != 'ADJSAAM': # H2_p ADJSAAM's states file's url is null
                 #print(link)
                 version_name = 'EXOMOL_' + version_name
                 href2 = ''
@@ -204,13 +225,15 @@ def get_trans_files(molecule_url, molecule_name):
                     #2. partition
                     #3. states
                     #print(link)
-                    downloaded = [] #########
+                    downloaded = ['CaO', 'H2S', 'PH3', 'H2O2'] #########
                     if link is not None: 
                         href5 = link.get('href')                            
                         #the trans file
                         if href5.endswith('.trans.bz2'):
                             file_num += 1
                             if molecule_name not in downloaded: #####
+                                if molecule_name == 'HNO3' and file_num <= 68:
+                                    continue
                                 trans_link = r'http://exomol.com' + href5
                                 #print(trans_link)
                                 download_bz2_file(trans_link, molecule_name + '_trans_' + iso_name + '_' + version_name + '_' + str(file_num))
@@ -231,9 +254,10 @@ def get_trans_files(molecule_url, molecule_name):
                                 has_partitions = True
                                 partitions_link = r'http://exomol.com' + href5
                                 #print(partitions_link)
-                                if molecule_name == 'H2': #specially hardcoded for H2 whose partiton file is an invalid URL
-                                    has_partitions = False
-                                    continue                             
+                                if molecule_name == 'H2' or molecule_name == 'MgO' or molecule_name == 'H2_p': #specially hardcoded for H2 and MgO whose partiton file is an invalid URL
+                                    if iso_name != '(26Mg)(16O)':
+                                        has_partitions = False
+                                        continue                             
                                 download_file(partitions_link, molecule_name + '_partitions_' + iso_name + '_' + version_name)                
                                     
                 #if no partition file...can only use this instead of downloading the partition file form exomol in the future

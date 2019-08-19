@@ -9,7 +9,7 @@ Created on Tue Jul 16 12:19:06 2019
 import numpy as np
 import time
 
-#calculates the partition function and write to a file for molecules that has no partition
+#calculates the partition function and write to a file for molecules that has no partition for exomol
 
 ######################
 

@@ -9,6 +9,7 @@ Created on Fri Aug 16 13:16:47 2019
 import compute_absorption
 
 #Interactive User Interface for Absorption Cross Section Calculator
+#Working but need to refine more to be more complete and userr friendly
 
 print('Hello! Welcome to Toma\'s linelist database, sir.')
 toma = input('Do you want to obtain absorption cross section data today, Sir? \nEnter: Y or n \n')

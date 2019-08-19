@@ -5,7 +5,7 @@ Created on Wed Jun 26 10:49:14 2019
 
 @author: toma
 """
-#this file creates database and tables in mysql
+#this file creates linelist database and tables in mysql
 
 import MySQLdb
 from query_functions import sql_order
@@ -85,6 +85,15 @@ reference_link VARCHAR(250) NOT NULL, \
 particle_id  SMALLINT UNSIGNED NOT NULL, \
 line_source_id SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, \
 FOREIGN KEY (particle_id) REFERENCES particles(particle_id) ON UPDATE CASCADE ON DELETE CASCADE);"
+
+#create a view table for user to look through
+default_linelists_table_view_create_query = 'CREATE VIEW default_linelists AS \
+SELECT p.molecule_name AS molecule, p.iso_name AS isotopologue, p.iso_abundance AS iso_abundance, p.iso_mass AS iso_mass, \
+t.nu AS nu, t.A AS A, t.elower AS elower, t.g_upper AS g_upper, t.gamma_air AS gamma_air, \
+t.gamma_H2 AS gamma_H2, t.gamma_He AS gamma_He, t.n_air AS n_air, t.n_H2 AS n_H2, t.n_He AS n_He, \
+t.delta_air AS delta_air, t.delta_H2 AS delta_H2, t.delta_He AS delta_He, s.line_source AS source \
+FROM particles AS p INNER JOIN transitions AS t ON p.particle_id = t.particle_id \
+INNER JOIN source_properties AS s ON (p.particle_id = s.particle_id AND p.default_line_source_id = s.line_source_id) ORDER BY nu;'
 
 ##################
 

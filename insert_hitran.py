@@ -6,7 +6,7 @@ Created on Thu Jun 20 13:13:51 2019
 @author: toma
 """
 
-#this code imports hitran data into the database
+#this code helps insert hitran data into the database
 
 import MySQLdb
 from query_functions import sql_order, fetch
