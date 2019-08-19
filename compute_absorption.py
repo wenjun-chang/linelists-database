@@ -25,11 +25,13 @@ import time
 from astropy.modeling.models import Voigt1D
 import scipy
 
+#numexpr
 import numexpr as ne
 ne.set_vml_accuracy_mode('fast')
 ne.set_vml_num_threads(1)
 import os; os.environ['NUMEXPR_MAX_THREADS'] = '1'
 
+#numba
 from numba import jit
 
 
@@ -273,7 +275,13 @@ def compute_one_wavenum(wavenumber, T, p, iso_abundance, iso_mass, Q, v_ij_star,
     voigt_profile = np.real(wofz) / sigma_thermal / np.sqrt(2*pi)
     absorption = S_ij * voigt_profile
     
-    return np.sum(absorption)
+    #spectrum: T = e^(-absorption*n*l)
+    #n = p / (Kb * T) 0.5/(1.38064852e-23*270)
+    #n = 1 / (1.38064852e-16 * 270)
+    n = p / (1.38064852e-16 * T)
+    l = 0.9e9
+    #absorption = np.exp(-absorption*n*l)
+    return np.exp(-np.sum(absorption)*n*l)
     
     
 #########################
@@ -285,7 +293,7 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
     iso_abundance = particle_data[1]
     iso_mass = particle_data[2]
     
-    #use this temporarily for testing
+    ##delete later###############use this temporarily for testing
     get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' and \
         particle_id = {}".format(line_source, particle_id)
     data = fetch(get_line_source_id_query)
@@ -295,16 +303,37 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
     print(line_source_id)
     
     '''
-    #get paritition using the correct function
-    if 'HITRAN' not in line_source and 'HITEMP' not in line_source: 
-        Q = get_partition(T, line_source_id, particle_id)
+    #get line source id
+    if line_source == 'default': 
+        line_source_id = fetch("SELECT default_line_source_id FROM particles WHERE particle_id = {}".format(particle_id))[0][0]
+    else: 
+        get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' and \
+        particle_id = {}".format(line_source, particle_id)
+        data = fetch(get_line_source_id_query)
+        if len(data) != 1:
+            raise Exception('should have exactly one line_source_id corresponding to one line_source and isotopologue')   
+        line_source_id = data[0][0]
+    print(line_source_id)
         
-    else: #if computing using hitran data
-        raise Exception('WAAAAAAAAAAAAA need to create the dictionary for best partition fucntion first')
-        #or just randomly choose a version
-        #Q = fetch("SELECT `partition` FROM partitions WHERE temperature = {} AND particle_id = {}".format(T, particle_id))[0][0]
+    #if computing using hitemp data, use hitran partitions, so get hitran line_source_id for partitions
+    if 'HITEMP' in line_source: 
+        get_hitran_source_id_query = "SELECT line_source, line_source_id FROM source_properties WHERE particle_id = {}".format(particle_id)
+        sources = fetch(get_hitran_source_id_query)
+        hitran_id = -1
+        for source in sources: 
+            if source[0].startswith('HITRAN'): 
+                hitran_id = source[1]
+        if hitran_id == -1:
+            raise Exception('This isotopologue has hitemp but no hitran linelist which is weird')
+        #use hitran id to get partitions for hitemp
+        Q = get_partition(T, hitran_id, particle_id)
+    
+    else: #for other sources, use line source id to get partitions   
+        #get paritition using the correct function
+        Q = get_partition(T, line_source_id, particle_id)
     '''
-    Q = 162879.38910000 #NO2
+    #Q = 162879.38910000 #NO2
+    Q = 152.18884000 #H2O at 270K
     print(Q)
     '''
     fetch_time =  time.time()
@@ -315,18 +344,11 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
     
     #create a cursor object
     cursor = db.cursor()
-    
-    if line_source == 'default': 
-        #use this query for getting the lines of default line source
-        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, \
-        delta_He FROM transitions INNER JOIN particles ON particles.default_line_source_id = transitions.line_source_id \
-        WHERE particles.particle_id = {};".format(particle_id)
-    
-    else:
-        #query for all the lines of the3.7729922865792e-27 specified isotopologue from the user given nu, line_source
-        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, \
-        n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
-        line_source_id = '{}'".format(particle_id, line_source_id)
+
+    #query for all the lines of the specified isotopologue from the user given nu, line_source
+    query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, \
+    n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
+    line_source_id = '{}' ORDER BY nu".format(particle_id, line_source_id)
     
     #this gives us a table of all the parameters we desire in a table in mysql
     cursor.execute(query)
@@ -348,7 +370,12 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
     num_rows = int(5e6)
     start = 0 
     counter = 0
-    all_lines_array = np.load('/home/toma/Desktop/linelists-database/(14N)(16O)2 .npy')
+    #all_lines_array = np.load('/home/toma/Desktop/linelists-database/(14N)(16O)2 .npy')
+    all_lines_array = np.loadtxt('/home/toma/Desktop/(1H)2(16O)_database_foramt', usecols=(0,1,2,3,4,5,6), skiprows=1)    
+    print(all_lines_array.shape)
+    #sort the lines
+    #argsort = np.argsort(all_lines_array[:,0])
+    #all_lines_array = all_lines_array[argsort]
     print(len(all_lines_array))
     absorption_cross_section = np.zeros(len(v))
     while True: 
@@ -369,23 +396,28 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
         #(0,  1,     2,       3,       4,        5,     6,    7,       8,      9,      10,      11,     12   )
         
         v_ij = lines_array[:,0] #v_ij = nu !!!!!!!
+        print(v_ij)
         a = lines_array[:,1]
         gamma_air = lines_array[:,2]
         n_air = lines_array[:,3]
         delta_air = lines_array[:,4]
         elower = lines_array[:,5]
         g_upper = lines_array[:,6]
+        '''
         gamma_H2 = lines_array[:,7]
         n_H2 = lines_array[:,8]
         delta_H2 = lines_array[:,9]
         gamma_He = lines_array[:,10]
         n_He = lines_array[:,11]
         delta_He = lines_array[:,12]
+        '''
         
         #################
         #initialize an np array for gamma_p_T
         gamma_p_T = np.zeros(len(a))
-        
+        gamma_p_T = p * (T_ref / T)**(n_air) * gamma_air
+        v_ij_star = v_ij + p * delta_air
+        '''
         #arrays that check whether that parameter is null in that index
         bool_gamma_H2 = ~np.isnan(gamma_H2)
         bool_gamma_He = ~np.isnan(gamma_He)
@@ -446,7 +478,7 @@ def new_compute_all(v, T, p, iso_name, line_source='default'):
         v_ij_star[has_no_delta] = v_ij[has_no_delta]
         
         #need to pass in: v_ij_star, a, elower, g_upper, gamma_p_T : all arrays
-        
+        '''
         ##################
         #indexes = np.searchsorted(ines_array, v) #where v[indexes - 1] < lines_array <= v[indexes]
         lower_indexes = np.searchsorted(lines_array[:,0], v - 25, side='right') #where lines_array[indexes - 1] <= v - 25 < lines_array[indexes]
@@ -494,55 +526,18 @@ def main():
     #wavelengths = np.exp(np.linspace(np.log(0.3e-4), np.log(30e-4), 4616))
     #wavenums = np.loadtxt('/home/toma/Desktop/output_1000_1d-1.xsec', usecols=0, unpack=True)
     
-    wavenums = np.loadtxt('/home/toma/Desktop/N2O_1000_1d-1.xsec', usecols=0, unpack=True)
+    #wavenums = np.loadtxt('/home/toma/Desktop/N2O_1000_1d-1.xsec', usecols=0, unpack=True)
+    wavelengths, continuum = np.loadtxt('/home/toma/Desktop/Telluric Spectrum', usecols=(2, 5) , skiprows=1, unpack=True)
+    wavenums = 1e4 / wavelengths
     
-    absorption_cross_section = new_compute_all(wavenums, 1000, 0.1, '(14N)(16O)2', 'HITEMP_2019')
+    earth_spec = new_compute_all(wavenums, 270, 0.5, '(1H)2(16O)', 'HITRAN_2016')
+    earth_spec *= continuum
+    np.save('/home/toma/Desktop/telluric_spectrum_model.npy', earth_spec)
+    #absorption_cross_section = new_compute_all(wavenums, 1000, 0.1, '(14N)(16O)2', 'HITEMP_2019')
     #absorption_cross_section = compute_all(wavenums, 1000, 0.1, '(14N)(16O)2', 'HITEMP_2019')
     #print('absorption_cross_section is', absorption_cross_section)
-    np.save('/home/toma/Desktop/absorption.npy', absorption_cross_section)
+    #np.save('/home/toma/Desktop/absorption.npy', absorption_cross_section)
     
     print("Finished in %s seconds" % (time.time() - start_time))
-    
-    '''
-    #interactive user interface
-    print('Hello! Welcome to Toma\'s linelist database, sir.')
-    toma = input('Do you want to obtain absorption cross section data today, Sir? \nEnter: Y or n \n')
-    while True: 
-        if toma.lower() == 'y':
-            isotopologue = input('What isotopologue of a molecule are you looking for? Format example: CO2 = (12C)(16O)2 \n')
-            source = input('What type of data do Sir wish to compute from? \nEnter: HITRAN or EXOMOL or DEFAULT--the optimal'
-                           'version for the molecule you chooose, Sir \n')
-            if source.lower() != 'default': 
-                hitran_versions = '2016, 2012, 2008'
-                exomol_versions = 'Li2015, SAITY'
-                if source.lower() == 'hitran':
-                    version = input('What version of {} do Sir desire? \nVersions available include {}'
-                                    ' (case sensitive) \n'.format(source.upper(), hitran_versions))
-                if source.lower() == 'exomol':
-                    version = input('What version of {} do Sir desire? \nVersions available include {}'
-                                    ' (case sensitive) \n'.format(source.upper(), exomol_versions))
-                    
-                line_source = source.upper() + '_' + version
-            else: #for default
-                line_source = source.lower()
-                
-            wavenums = input('At what wavenumber(s) (cm^-1) Sir? \n')
-            temp = wavenums.split(',')
-            v = []
-            for i in temp:
-                v.append(float(i))
-            T = float(input('At what temperature (K) Sir? \n'))
-            p = float(input('At what pressure (atm) Sir? \n'))
-            
-            output = compute_all(v, T, p, isotopologue, line_source)
-            print('The absorption cross section for {} in {} at {}, {}, {} is {} \n'.format(isotopologue, line_source, v, T, p, output))
-            toma = input('Do you want to obtain another absorption cross section data, Sir? \nEnter: Y or n \n')
-        elif toma.lower() == 'n':
-            print('Farewell, Sir. May the flame guide you~ \n')
-            break
-        else: 
-            toma = input('Please enter Y or n \n')
-    quit()
-    '''
 if __name__ == '__main__':
     main()

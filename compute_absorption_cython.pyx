@@ -1,4 +1,4 @@
-#cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True
+#cython: boundscheck=False, wraparound=False, nonecheck=False, cdivision=True, linetrace=True
 
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
@@ -32,7 +32,10 @@ cdef extern from "vfastexp.h":
     double exp_approx "EXP" (double)
 cdef extern from "Faddeeva.hh":
     complex Faddeeva "Faddeeva::w" (complex, double)
-    
+
+cimport cython #for profiling
+
+
 #M_PI = np.pi
 #complex.real working
 #c_exp 68 secs vs. exp_approx 42 secs
@@ -87,8 +90,10 @@ def get_particle(iso_name):
     return data[0]
     
 #########################
+
+@cython.binding(True)
 #@profile
-cdef double compute_one_wavenum(double wavenumber, double T, double p, double iso_abundance, double iso_mass, \
+def compute_one_wavenum(double wavenumber, double T, double p, double iso_abundance, double iso_mass, \
                         double Q, double[:] v_ij_star, double[:] a, double[:] elower, double[:] g_upper, \
                         double[:] gamma_p_T):
     cdef double S_ij, sigma_thermal, voigt_profile, absorption = 0
@@ -111,6 +116,7 @@ cdef double compute_one_wavenum(double wavenumber, double T, double p, double is
 
 #########################
 #@profile
+@cython.binding(True)
 cdef double[:] new_compute_all(double[:] v, double T, double p, iso_name, line_source='default'): 
     #get particle_id and iso_abundance using the correct function
     particle_data = get_particle(iso_name)
@@ -130,14 +136,34 @@ cdef double[:] new_compute_all(double[:] v, double T, double p, iso_name, line_s
     print(line_source_id)
     
     '''
-    #get paritition using the correct function
-    if 'HITRAN' not in line_source and 'HITEMP' not in line_source: 
-        Q = get_partition(T, line_source_id, particle_id)
+    #get line source id
+    if line_source == 'default': 
+        line_source_id = fetch("SELECT default_line_source_id FROM particles WHERE particle_id = {}".format(particle_id))[0][0]
+    else: 
+        get_line_source_id_query = "SELECT line_source_id FROM source_properties WHERE line_source = '{}' and \
+        particle_id = {}".format(line_source, particle_id)
+        data = fetch(get_line_source_id_query)
+        if len(data) != 1:
+            raise Exception('should have exactly one line_source_id corresponding to one line_source and isotopologue')   
+        line_source_id = data[0][0]
+    print(line_source_id)
         
-    else: #if computing using hitran data
-        raise Exception('WAAAAAAAAAAAAA need to create the dictionary for best partition fucntion first')
-        #or just randomly choose a version
-        #Q = fetch("SELECT `partition` FROM partitions WHERE temperature = {} AND particle_id = {}".format(T, particle_id))[0][0]
+    #if computing using hitemp data, use hitran partitions, so get hitran line_source_id for partitions
+    if 'HITEMP' in line_source: 
+        get_hitran_source_id_query = "SELECT line_source, line_source_id FROM source_properties WHERE particle_id = {}".format(particle_id)
+        sources = fetch(get_hitran_source_id_query)
+        hitran_id = -1
+        for source in sources: 
+            if source[0].startswith('HITRAN'): 
+                hitran_id = source[1]
+        if hitran_id == -1:
+            raise Exception('This isotopologue has hitemp but no hitran linelist which is weird')
+        #use hitran id to get partitions for hitemp
+        Q = get_partition(T, hitran_id, particle_id)
+    
+    else: #for other sources, use line source id to get partitions   
+        #get paritition using the correct function
+        Q = get_partition(T, line_source_id, particle_id)
     '''
     cdef double Q = 162879.38910000 #NO2
     print(Q)
@@ -151,17 +177,10 @@ cdef double[:] new_compute_all(double[:] v, double T, double p, iso_name, line_s
     #create a cursor object
     cursor = db.cursor()
     
-    if line_source == 'default': 
-        #use this query for getting the lines of default line source
-        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, n_H2, delta_H2, gamma_He, n_He, \
-        delta_He FROM transitions INNER JOIN particles ON particles.default_line_source_id = transitions.line_source_id \
-        WHERE particles.particle_id = {};".format(particle_id)
-    
-    else:
-        #query for all the lines of the3.7729922865792e-27 specified isotopologue from the user given nu, line_source
-        query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, \
-        n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
-        line_source_id = '{}'".format(particle_id, line_source_id)
+    #query for all the lines of the3.7729922865792e-27 specified isotopologue from the user given nu, line_source
+    query = "SELECT nu, A, gamma_air, n_air, delta_air, elower, g_upper, gamma_H2, \
+    n_H2, delta_H2, gamma_He, n_He, delta_He FROM transitions WHERE particle_id = {} AND \
+    line_source_id = '{}'".format(particle_id, line_source_id)
     
     #this gives us a table of all the parameters we desire in a table in mysql
     cursor.execute(query)
@@ -329,6 +348,7 @@ cdef double[:] new_compute_all(double[:] v, double T, double p, iso_name, line_s
 #########################
 
 #obtain input v, T, p, iso_name, line_source from the user
+@cython.binding(True)
 def main():
         
     start_time = time.time()
