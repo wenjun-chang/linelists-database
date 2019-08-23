@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 def plot_absorption(wavenum_file, absorption_file): 
     wavenums = np.loadtxt(wavenum_file, usecols=0, unpack=True)
     wavelengths = (1 / wavenums) * 1e4
-    absorptions = np.loadtxt(absorption_file, usecols=0, unpack=True)
+    absorptions = np.load(absorption_file)
     
     plt.xscale('log')
     plt.yscale('log')

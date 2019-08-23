@@ -9,6 +9,7 @@ Created on Fri Jul 26 13:53:21 2019
 #if runned as main this file is going to compute absorption and plot the result
 ##################
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from create_tables import create_database_with_tables_and_indexes
@@ -49,17 +50,22 @@ def plot_calculated_absorption_against_wavelength(wavenum_file, absorption_file)
     plot_absorption(wavenum_file, absorption_file)
 
 if __name__ == '__main__': 
-    #absorption_file = compute_absorption('poster_demo', '/home/toma/Desktop/output_1000_1d-1.xsec', 1000, 0.1, '(12C)(16O)', 'HITRAN_2016')
-    #plot_calculated_absorption_against_wavelength('/home/toma/Desktop/output_1000_1d-1.xsec', absorption_file)
-    
-    wavenums, absorptions = np.loadtxt('/home/toma/Desktop/output_1000_1d-1.xsec', usecols=(0, 1), unpack=True)
+    absorption_file = compute_absorption('poster_demo', '/home/toma/Desktop/output_1000_1d-1.xsec', 1000, 0.1, '(12C)(16O)', 'HITRAN_2016')
+    plot_calculated_absorption_against_wavelength('/home/toma/Desktop/output_1000_1d-1.xsec', absorption_file)
+    '''
+    #matplotlib.use('Qt5Agg')
+    wavenums, absorptions2 = np.loadtxt('/home/toma/Desktop/output_1000_1d-1.xsec', usecols=(0, 1), unpack=True)
+    absorptions = np.load('/home/toma/Desktop/absorption.npy')
     wavelengths = (1 / wavenums) * 1e4
     plt.xscale('log')
     plt.yscale('log')
-    plt.plot(wavelengths, absorptions, label='Absorption Plot')
+    plt.plot(wavelengths, absorptions2, label='Ref Plot')
+    #plt.plot(wavelengths, absorptions, label='Absorption Plot')
     plt.gca().legend(('database absorption',), fontsize='xx-large')
     plt.title("Absorption cross section plot", fontsize='xx-large')
     plt.xlabel('Wavelength (um)', fontsize='xx-large')
     plt.ylabel('Absorption Cross Section (cm^2)', fontsize='xx-large')
     plt.grid(True)
+    #plt.ioff()
     plt.show()
+    '''
